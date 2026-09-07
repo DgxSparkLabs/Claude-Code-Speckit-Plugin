@@ -89,7 +89,15 @@ jobs:
       - name: Regenerate assets
         if: steps.check.outputs.needs_update == 'true'
         run: |
-          INIT_FLAGS=(--integration claude --here --force --ignore-agent-tools --non-interactive --extension git)
+          INIT_FLAGS=(--integration claude --here --force --ignore-agent-tools --non-interactive)
+
+          EXT_FLAGS=()
+          while IFS= read -r line || [ -n "$line" ]; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+            EXT_FLAGS+=(--extension "$line")
+          done < speckit-extensions.txt
 
           for variant_pair in "bash:sh" "ps:ps"; do
             IFS=':' read -r VARIANT SCRIPT_FLAG <<< "$variant_pair"
@@ -100,7 +108,7 @@ jobs:
             WORK_DIR="$(mktemp -d)"
 
             # Generate spec-kit output
-            (cd "$WORK_DIR" && specify init . "${INIT_FLAGS[@]}" --script "$SCRIPT_FLAG")
+            (cd "$WORK_DIR" && specify init . "${INIT_FLAGS[@]}" "${EXT_FLAGS[@]}" --script "$SCRIPT_FLAG")
 
             # Replace asset directory contents
             rm -rf "$TARGET_DIR"

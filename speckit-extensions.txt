@@ -1,0 +1,5 @@
+# Bundled Spec Kit extensions installed during asset regeneration.
+# One entry per line: a value accepted by `specify init --extension`
+# (bundled name, local path, or URL). Blank lines and # comments are ignored.
+
+git
