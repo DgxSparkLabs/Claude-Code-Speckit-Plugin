@@ -132,7 +132,10 @@ jobs:
         if: steps.check.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with contents:write + pull-requests:write. Falls back to
+          # GITHUB_TOKEN, but note: if the org disables "Allow GitHub Actions
+          # to create and approve pull requests", only a PAT can open the PR.
+          token: ${{ secrets.SPECKIT_PAT || secrets.GITHUB_TOKEN }}
           commit-message: "chore: update spec-kit assets to ${{ steps.latest.outputs.version }}"
           branch: "auto/update-speckit-${{ steps.latest.outputs.version }}"
           title: "chore: update spec-kit assets to ${{ steps.latest.outputs.version }}"
