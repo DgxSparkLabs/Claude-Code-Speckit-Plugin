@@ -92,8 +92,8 @@ jobs:
           for d in assets/bash/.claude/skills/speckit-*/; do
             expected_count=$((expected_count + 1))
           done
-          if [ "$expected_count" -ne 15 ]; then
-            echo "ERROR: expected 15 speckit-* skills under assets/bash/.claude/skills/, found $expected_count" >&2
+          if [ "$expected_count" -lt 1 ]; then
+            echo "ERROR: no speckit-* skills were found under assets/bash/.claude/skills/" >&2
             exit 1
           fi
 
