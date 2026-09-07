@@ -1,5 +1,5 @@
 {
-  "version": "0.8.16",
+  "version": "1.0.4",
   "integration_state_schema": 1,
   "installed_integrations": [
     "claude"
@@ -7,9 +7,6 @@
   "integration_settings": {
     "claude": {
       "script": "ps",
-      "parsed_options": {
-        "skills": true
-      },
       "invoke_separator": "-"
     }
   },
