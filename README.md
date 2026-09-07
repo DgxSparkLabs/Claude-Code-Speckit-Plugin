@@ -32,7 +32,7 @@ claude plugin install speckit@claude-code-speckit-plugin --scope project
 
 ### Agent Skills (`npx skills add`)
 
-This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install. Install the Spec Kit init skill into a project without the Claude Code plugin:
+This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install:
 
 ```bash
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin
@@ -73,23 +73,23 @@ After updating the plugin, re-initialize your project to pick up the latest asse
    ```
 2. Establish your project constitution:
    ```
-   /speckit-constitution
+   /speckit:speckit-constitution
    ```
 3. Specify a new feature:
    ```
-   /speckit-specify <feature description>
+   /speckit:speckit-specify <feature description>
    ```
 4. Plan the implementation:
    ```
-   /speckit-plan
+   /speckit:speckit-plan
    ```
 5. Generate dependency-ordered tasks:
    ```
-   /speckit-tasks
+   /speckit:speckit-tasks
    ```
 6. Implement:
    ```
-   /speckit-implement
+   /speckit:speckit-implement
    ```
 
 ## Available Skills
@@ -98,32 +98,32 @@ After updating the plugin, re-initialize your project to pick up the latest asse
 
 | Skill | Command | Description |
 |---|---|---|
-| init | `/speckit:init` | Initialize a new project with the Spec Kit workflow infrastructure. Copies .specify/ and .claude/ directories with scripts, templates, skills, and extensions. User-invocable only — run /speckit:init; do not auto-invoke. |
-| speckit-clarify | `/speckit-clarify` | Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec. |
-| speckit-constitution | `/speckit-constitution` | Create or update the project constitution from interactive or provided principle inputs. |
-| speckit-converge | `/speckit-converge` | Assess the current codebase against the feature's spec, plan, and tasks, then append any remaining unbuilt work as new tasks to tasks.md so implement can complete it. |
-| speckit-implement | `/speckit-implement` | Execute the implementation plan by processing and executing all tasks defined in tasks.md |
-| speckit-plan | `/speckit-plan` | Execute the implementation planning workflow using the plan template to generate design artifacts. |
-| speckit-specify | `/speckit-specify` | Create or update the feature specification from a natural language feature description. |
-| speckit-tasks | `/speckit-tasks` | Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts. |
+| init | `/speckit:init` | Initialize a new project with the Spec Kit workflow infrastructure. Always copies .specify/. Copies speckit-* skills into .claude/skills/ only in standalone mode; when installed as a plugin those skills are already provided. User-invocable only — run /speckit:init; do not auto-invoke. |
+| speckit-clarify | `/speckit:speckit-clarify` | Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec. |
+| speckit-constitution | `/speckit:speckit-constitution` | Create or update the project constitution from interactive or provided principle inputs. |
+| speckit-converge | `/speckit:speckit-converge` | Assess the current codebase against the feature's spec, plan, and tasks, then append any remaining unbuilt work as new tasks to tasks.md so implement can complete it. |
+| speckit-implement | `/speckit:speckit-implement` | Execute the implementation plan by processing and executing all tasks defined in tasks.md |
+| speckit-plan | `/speckit:speckit-plan` | Execute the implementation planning workflow using the plan template to generate design artifacts. |
+| speckit-specify | `/speckit:speckit-specify` | Create or update the feature specification from a natural language feature description. |
+| speckit-tasks | `/speckit:speckit-tasks` | Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts. |
 
 ### Analysis & Quality
 
 | Skill | Command | Description |
 |---|---|---|
-| speckit-analyze | `/speckit-analyze` | Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation. |
-| speckit-checklist | `/speckit-checklist` | Generate a custom checklist for the current feature based on user requirements. |
-| speckit-taskstoissues | `/speckit-taskstoissues` | Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts. |
+| speckit-analyze | `/speckit:speckit-analyze` | Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation. |
+| speckit-checklist | `/speckit:speckit-checklist` | Generate a custom checklist for the current feature based on user requirements. |
+| speckit-taskstoissues | `/speckit:speckit-taskstoissues` | Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts. |
 
 ### Git Integration
 
 | Skill | Command | Description |
 |---|---|---|
-| speckit-git-commit | `/speckit-git-commit` | Auto-commit changes after a Spec Kit command completes |
-| speckit-git-feature | `/speckit-git-feature` | Create a feature branch with sequential or timestamp numbering |
-| speckit-git-initialize | `/speckit-git-initialize` | Initialize a Git repository with an initial commit |
-| speckit-git-remote | `/speckit-git-remote` | Detect Git remote URL for GitHub integration |
-| speckit-git-validate | `/speckit-git-validate` | Validate current branch follows feature branch naming conventions |
+| speckit-git-commit | `/speckit:speckit-git-commit` | Auto-commit changes after a Spec Kit command completes |
+| speckit-git-feature | `/speckit:speckit-git-feature` | Create a feature branch with sequential or timestamp numbering |
+| speckit-git-initialize | `/speckit:speckit-git-initialize` | Initialize a Git repository with an initial commit |
+| speckit-git-remote | `/speckit:speckit-git-remote` | Detect Git remote URL for GitHub integration |
+| speckit-git-validate | `/speckit:speckit-git-validate` | Validate current branch follows feature branch naming conventions |
 
 ## Spec Kit CLI Reference
 
@@ -148,20 +148,21 @@ The plugin assets are generated from the upstream `specify` CLI and kept in sync
 
 ### Generation Process
 
-1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled Spec Kit extensions.
-2. The resulting `.claude/` and `.specify/` directories are copied into the matching `assets/{bash,ps}/` folder.
-3. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
+1. `specify init` runs with `--script sh` and the bundled Spec Kit extensions.
+2. The resulting `.claude/` and `.specify/` directories are copied into `assets/bash/`.
+3. `skills/speckit-*` is mirrored from `assets/bash/.claude/skills/` so the plugin and `npx skills` both discover the workflow skills.
+4. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
 
 ### How `init` Bootstraps a Project
 
-When a user runs `/speckit:init`, the plugin detects the platform (bash for macOS and Linux, PowerShell for Windows), selects the matching asset variant, and copies the pre-generated `.specify/` and `.claude/skills/speckit-*/` directories into the project root. No Python or `specify` CLI is required. User content in `.claude/` is preserved: only plugin-owned paths are replaced.
+When a user runs `/speckit:init`, the plugin copies the pre-generated `.specify/` tree into the project root. Spec Kit workflow skills are copied into `.claude/skills/` only in standalone mode (`CLAUDE_PLUGIN_ROOT` unset); when the plugin is installed they are already provided. Native Windows uses Git Bash or WSL for the bundled `.sh` scripts. No Python or `specify` CLI is required. User content in `.claude/` is preserved: only plugin-owned paths are replaced.
 
 ### Staying Aligned With Upstream
 
 A [GitHub Actions workflow](/.github/workflows/update-speckit-assets.yml) runs daily to keep the plugin in sync:
 
 1. Detect: the workflow checks the [latest stable release](https://github.com/github/spec-kit/releases) of `github/spec-kit` and compares it to the version in `.claude-plugin/plugin.json`. Pre-release versions (dev, alpha, beta, rc) are skipped.
-2. Regenerate: if a newer stable release exists, both asset variants are regenerated from scratch.
+2. Regenerate: if a newer stable release exists, `assets/bash/` is regenerated from scratch and `skills/speckit-*` is re-synced from it.
 3. Bump: `.claude-plugin/plugin.json` is updated to the new version.
 4. README: `scripts/generate_readme.py` refreshes the skill catalog and CLI reference.
 5. PR: the workflow opens a pull request (for example, `auto/update-speckit-<version>`) and enables auto-merge, so a clean update with no conflicts merges once checks pass.
