@@ -61,7 +61,7 @@ jobs:
           while IFS= read -r name; do
             [ -n "$name" ] || continue
             echo "::group::npx skills add . --skill ${name} -a claude-code -y"
-            npx --yes skills@latest add . --skill "$name" -a claude-code -y
+            npx --yes skills@latest add . --skill "$name" -a claude-code -y </dev/null
             echo "::endgroup::"
           done < <(uv run scripts/list_skills.py)
 
