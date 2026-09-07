@@ -17,7 +17,7 @@ runs:
       shell: bash
       run: |
         # Official installer (Windows/PowerShell equivalent: powershell irm https://claude.ai/install.ps1 | iex)
-        curl -fsSL https://claude.ai/install.sh | bash
+        curl -fsSL https://claude.ai/install.sh | bash -s -- "${{ inputs.claude-version }}"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         export PATH="$HOME/.local/bin:$PATH"
         claude --version
