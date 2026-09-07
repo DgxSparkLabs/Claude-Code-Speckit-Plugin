@@ -1,0 +1,58 @@
+name: Plugin Compat Check
+description: >-
+  Register this repository's marketplace with the Claude CLI, install the
+  plugin, assert both are listed, and validate the manifest. Fails the job if
+  the plugin no longer registers, installs, lists, or validates.
+
+inputs:
+  claude-version:
+    description: "Claude Code CLI version to install."
+    default: "latest"
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code@${{ inputs.claude-version }}
+        claude --version
+
+    - name: Derive marketplace and plugin identity
+      id: id
+      shell: bash
+      run: |
+        MP=$(jq -r '.name' .claude-plugin/marketplace.json)
+        PLUGIN=$(jq -r '.plugins[0].name' .claude-plugin/marketplace.json)
+        echo "marketplace=$MP" >> "$GITHUB_OUTPUT"
+        echo "plugin=$PLUGIN" >> "$GITHUB_OUTPUT"
+        echo "Marketplace: $MP  Plugin: $PLUGIN"
+
+    - name: Register marketplace
+      shell: bash
+      run: claude plugin marketplace add ./
+
+    - name: Assert marketplace is listed
+      shell: bash
+      run: claude plugin marketplace list | grep -F "${{ steps.id.outputs.marketplace }}"
+
+    - name: Install the plugin
+      shell: bash
+      run: claude plugin install ${{ steps.id.outputs.plugin }}@${{ steps.id.outputs.marketplace }} --scope project
+
+    - name: Assert plugin is listed
+      shell: bash
+      run: claude plugin list | grep -F "${{ steps.id.outputs.plugin }}"
+
+    - name: Validate marketplace (fails non-zero on real errors)
+      shell: bash
+      run: claude plugin validate ./
+
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: |
+        claude plugin uninstall ${{ steps.id.outputs.plugin }} --scope project || true
+        claude plugin prune --scope project -y || true
+        claude plugin marketplace remove ${{ steps.id.outputs.marketplace }} || true
