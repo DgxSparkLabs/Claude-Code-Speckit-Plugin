@@ -235,14 +235,16 @@ The upstream Spec Kit CLI requires Python. This plugin bundles the generated ass
 
 ### Claude Code
 
+Install at project scope so the plugin is shared with the team via `.claude/settings.json`:
+
 ```bash
-claude plugin marketplace add {REPO}
-claude plugin install {plugin_name}@{marketplace_name}
+claude plugin marketplace add {REPO} --scope project
+claude plugin install {plugin_name}@{marketplace_name} --scope project
 ```
 
 ### Agent Skills (`npx skills add`)
 
-This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). Install the Spec Kit init skill into a project without the Claude Code plugin:
+This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install. Install the Spec Kit init skill into a project without the Claude Code plugin:
 
 ```bash
 npx skills add {REPO}
@@ -266,7 +268,7 @@ npx skills add https://github.com/{REPO}/tree/main/skills/init
 ### Claude Code
 
 ```bash
-claude plugin update {plugin_name}@{marketplace_name}
+claude plugin update {plugin_name}@{marketplace_name} --scope project
 ```
 
 After updating the plugin, re-initialize your project to pick up the latest assets:
