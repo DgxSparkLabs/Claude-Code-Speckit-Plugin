@@ -132,15 +132,6 @@ jobs:
         if: steps.check.outputs.needs_update == 'true'
         run: uv run scripts/generate_readme.py
 
-      # ── Verify the regenerated plugin still works ─────────────────
-      # Runs the same compat check as compat-test.yml against the freshly
-      # regenerated assets. GITHUB_TOKEN-authored PRs do not trigger separate
-      # check runs, so this in-job gate is what actually verifies an asset bump
-      # before it can auto-merge. A failure here fails the job: no PR is opened.
-      - name: Plugin compat check
-        if: steps.check.outputs.needs_update == 'true'
-        uses: ./.github/actions/plugin-compat
-
       # ── Create Pull Request ───────────────────────────────────────
       - name: Create Pull Request
         id: cpr
@@ -165,6 +156,18 @@ jobs:
             - Regenerated `README.md` via `scripts/generate_readme.py`
           labels: dependencies,automated
           delete-branch: true
+
+      # ── Verify the regenerated plugin, then gate the merge ────────
+      # Runs the same compat check as compat-test.yml against the assets just
+      # committed to the PR branch. It runs AFTER Create Pull Request on
+      # purpose: `claude plugin install --scope project` writes local config
+      # (.claude/settings.local.json) into the checkout, and create-pull-request
+      # stages untracked files, so running it earlier would leak those artifacts
+      # into the PR. A failure fails the job and skips auto-merge, leaving the
+      # PR open for inspection.
+      - name: Plugin compat check
+        if: steps.check.outputs.needs_update == 'true'
+        uses: ./.github/actions/plugin-compat
 
       # ── Enable auto-merge ─────────────────────────────────────────
       # The in-job "Plugin compat check" above already verified this asset set,
