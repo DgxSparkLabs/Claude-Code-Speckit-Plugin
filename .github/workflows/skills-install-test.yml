@@ -1,0 +1,75 @@
+# skills-install-test.yml — prove every installable skill is listable and
+# installable via the vercel-labs `npx skills` CLI (project scope).
+#
+# Installable skills live at top-level skills/*/SKILL.md. The speckit-* skills
+# under assets/**/.claude/skills/ are project-scaffold content copied by
+# /speckit:init; they are not installed by this package manager and are out of
+# scope.
+
+name: Skills Install Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "feat/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  agent-skills:
+    name: npx skills list+install
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Smoke-test skill enumerator and assertions
+        run: uv run tests/test_list_skills.py
+
+      - name: Enumerate installable skills
+        run: |
+          set -euo pipefail
+          uv run scripts/list_skills.py
+          uv run scripts/list_skills.py --json
+
+      - name: Assert npx skills add . --list includes every skill
+        env:
+          CI: "true"
+        run: |
+          set -euo pipefail
+          npx --yes skills@latest add . --list | tee "$RUNNER_TEMP/skills-available.txt"
+          uv run scripts/assert_skills.py \
+            --expected-from-repo . \
+            --listing "$RUNNER_TEMP/skills-available.txt"
+
+      - name: Install every enumerated skill for Claude Code
+        env:
+          CI: "true"
+        run: |
+          set -euo pipefail
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            echo "::group::npx skills add . --skill ${name} -a claude-code -y"
+            npx --yes skills@latest add . --skill "$name" -a claude-code -y
+            echo "::endgroup::"
+          done < <(uv run scripts/list_skills.py)
+
+          echo "=== npx skills list ==="
+          npx --yes skills@latest list | tee "$RUNNER_TEMP/skills-installed.txt"
+          echo "=== .claude/skills tree ==="
+          find .claude/skills -print 2>/dev/null || true
+
+          uv run scripts/assert_skills.py \
+            --expected-from-repo . \
+            --listing "$RUNNER_TEMP/skills-installed.txt" \
+            --installed-root .claude
