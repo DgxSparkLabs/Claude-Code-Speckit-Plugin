@@ -318,7 +318,7 @@ The plugin assets are generated from the upstream `specify` CLI and kept in sync
 
 ### Generation Process
 
-1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled `git` extension.
+1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled Spec Kit extensions.
 2. The resulting `.claude/` and `.specify/` directories are copied into the matching `assets/{{bash,ps}}/` folder.
 3. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
 
