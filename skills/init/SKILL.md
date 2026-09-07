@@ -1,7 +1,7 @@
 ---
 name: "init"
-description: "Initialize a new project with the Spec Kit workflow infrastructure. Always copies .specify/. Copies speckit-* skills into .claude/skills/ only in standalone mode; when installed as a plugin those skills are already provided. User-invocable only — run /speckit:init; do not auto-invoke."
-argument-hint: "[--force]"
+description: "Initialize a new project with the Spec Kit workflow infrastructure. Always copies .specify/. Copies speckit-* skills into .claude/skills/ only in standalone mode, detected by absence of .claude-plugin/plugin.json two levels above this skill; --skills/--no-skills override. User-invocable only — run /speckit:init; do not auto-invoke."
+argument-hint: "[--force] [--skills|--no-skills]"
 disable-model-invocation: true
 ---
 
@@ -21,15 +21,15 @@ Native Windows uses Git Bash or WSL for the bundled `.sh` scripts.
 
 ## When to run
 
-Only when the user invokes `/speckit:init` (or `/speckit:init --force`). Do not run this skill because a project "looks uninitialized".
+Only when the user invokes `/speckit:init` (or `/speckit:init` with `--force`, `--skills`, and/or `--no-skills`). Do not run this skill because a project "looks uninitialized".
 
 ## Execution
 
 Working directory **must** be the user's project root, not this skill directory.
 
-1. Parse `$ARGUMENTS`. The only supported flag is `--force`. Ignore an empty argument list. Reject any other argument and stop.
+1. Parse `$ARGUMENTS`. Supported flags are `--force`, `--skills`, and `--no-skills`. Ignore an empty argument list. Reject any other argument and stop.
 2. Resolve `<skill-dir>`: use `${CLAUDE_SKILL_DIR}` when it is an existing directory, otherwise the directory that contains this `SKILL.md`.
-3. Run the bootstrap script, forwarding `--force` when the user passed it:
+3. Run the bootstrap script, forwarding those flags as the user passed them:
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/init-speckit.sh" $ARGUMENTS
@@ -46,8 +46,9 @@ If `${CLAUDE_SKILL_DIR}` was not substituted, replace it with `<skill-dir>`.
   3. Standalone install (for example via `npx skills add`): shallow-clone this plugin repository and use its `assets/bash`
 - **Always copy** `.specify/` (plugin-owned; replaced entirely).
 - **Skills copy is dual-mode:**
-  - **Standalone** (`CLAUDE_PLUGIN_ROOT` unset): under `.claude/`, remove only `.claude/skills/speckit-*/`, then copy the bundled `speckit-*` skills. Preserve every other file the user already has in `.claude/`.
-  - **Plugin** (`CLAUDE_PLUGIN_ROOT` set): skip the skill copy; the installed plugin already provides them.
+  - Default: plugin mode if `<skill-dir>/../../.claude-plugin/plugin.json` exists (skip the skill copy; the installed plugin already provides them); otherwise standalone (under `.claude/`, remove only `.claude/skills/speckit-*/`, then copy the bundled `speckit-*` skills). Preserve every other file the user already has in `.claude/`.
+  - `--skills` forces the skill copy; `--no-skills` forces skipping it. These override the detected mode.
+  - Do not use `$CLAUDE_PLUGIN_ROOT` to decide the mode; that variable is only an asset-root candidate.
 - `chmod +x` on `.specify/**/*.sh`.
 
 ### Exit codes
