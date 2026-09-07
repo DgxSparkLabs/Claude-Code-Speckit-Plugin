@@ -1,8 +1,8 @@
 # skills-install-test.yml — prove installable skills are listable via `npx skills`
-# and that /speckit:init copies every bundled speckit-* skill into a fresh project.
+# and that /speckit:init behaves correctly in standalone and plugin modes.
 #
 # Job agent-skills: top-level skills/*/SKILL.md via the vercel-labs `npx skills` CLI.
-# Job speckit-init: assets/bash/.claude/skills/speckit-*/SKILL.md via init-speckit.sh.
+# Job speckit-init: standalone copies speckit-* skills; plugin mode copies only .specify/.
 
 name: Skills Install Tests
 
@@ -30,6 +30,9 @@ jobs:
           node-version: "22"
 
       - uses: astral-sh/setup-uv@v10.0.1
+
+      - name: Assert bundled skills match assets/bash/.claude/skills/
+        run: uv run scripts/assert_bundled_skills.py
 
       - name: Smoke-test skill enumerator and assertions
         run: uv run tests/test_list_skills.py
@@ -73,7 +76,7 @@ jobs:
             --installed-root .claude
 
   speckit-init:
-    name: /speckit:init copies bundled skills
+    name: /speckit:init standalone and plugin modes
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -81,16 +84,20 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Bootstrap a fresh project and assert every bundled skill
+      - name: Standalone init copies .specify/ and every bundled skill
         run: |
           set -euo pipefail
           uv run scripts/list_skills.py --root assets/bash/.claude
           uv run scripts/list_skills.py --root assets/bash/.claude --json > "$RUNNER_TEMP/speckit-expected.json"
 
           proj="$(mktemp -d)"
-          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init.log"
-          if grep -q "Bundled assets not found locally" "$RUNNER_TEMP/init.log"; then
+          ( cd "$proj" && bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init-standalone.log"
+          if grep -q "Bundled assets not found locally" "$RUNNER_TEMP/init-standalone.log"; then
             echo "ERROR: init-speckit.sh fell back to cloning upstream instead of using the PR checkout" >&2
+            exit 1
+          fi
+          if [ ! -d "$proj/.specify" ]; then
+            echo "ERROR: standalone init did not create .specify/" >&2
             exit 1
           fi
 
@@ -106,3 +113,21 @@ jobs:
             find "$proj/.claude/skills" -print 2>/dev/null || true
             exit 1
           fi
+          echo "standalone init: .specify/ present and all speckit-* skills copied"
+
+      - name: Plugin-mode init copies .specify/ and skips skills
+        run: |
+          set -euo pipefail
+          proj="$(mktemp -d)"
+          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init-plugin.log"
+          if [ ! -d "$proj/.specify" ]; then
+            echo "ERROR: plugin-mode init did not create .specify/" >&2
+            exit 1
+          fi
+          extras="$(find "$proj/.claude/skills" -maxdepth 1 -name 'speckit-*' 2>/dev/null || true)"
+          if [ -n "$extras" ]; then
+            echo "ERROR: plugin-mode init copied speckit-* skills; the plugin already provides them:" >&2
+            echo "$extras" >&2
+            exit 1
+          fi
+          echo "plugin-mode init: .specify/ present and no speckit-* skills copied"

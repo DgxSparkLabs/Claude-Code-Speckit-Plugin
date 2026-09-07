@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Bootstrap the current directory with Spec Kit (no-Python equivalent of `specify init`).
 #
-# Resolves the bundled asset variant for this platform and copies `.specify/` and
-# `.claude/skills/speckit-*/` into the current working directory.
+# Always copies `.specify/` (the runtime every skill needs). Copies
+# `.claude/skills/speckit-*/` only when CLAUDE_PLUGIN_ROOT is unset
+# (standalone). When CLAUDE_PLUGIN_ROOT is set (installed-plugin route), the
+# plugin already provides those skills, so they are not copied.
 #
 # Exit codes: 0 = initialized, 2 = already initialized (pass --force), 1 = error.
 set -euo pipefail
@@ -19,23 +21,18 @@ for arg in "$@"; do
   esac
 done
 
-case "$(uname -s 2>/dev/null || echo Windows)" in
-  MINGW* | MSYS* | CYGWIN* | Windows*) variant=ps ;;
-  *) variant=bash ;;
-esac
-
 cleanup() { if [ -n "${clone_dir:-}" ]; then rm -rf "$clone_dir"; fi; }
 trap cleanup EXIT
 
 # Asset root resolution, in order:
-#   1. plugin/repo layout    -> <skill dir>/../../assets/<variant>
-#   2. explicit plugin root  -> $CLAUDE_PLUGIN_ROOT/assets/<variant>
+#   1. plugin/repo layout    -> <skill dir>/../../assets/bash
+#   2. explicit plugin root  -> $CLAUDE_PLUGIN_ROOT/assets/bash
 #   3. standalone install    -> shallow clone of the plugin repo
 resolve_assets() {
   local candidate
   for candidate in \
-    "$SKILL_DIR/../../assets/$variant" \
-    "${CLAUDE_PLUGIN_ROOT:-}/assets/$variant"; do
+    "$SKILL_DIR/../../assets/bash" \
+    "${CLAUDE_PLUGIN_ROOT:-}/assets/bash"; do
     case "$candidate" in /assets/*) continue ;; esac
     if [ -d "$candidate/.specify" ]; then
       (cd "$candidate" && pwd)
@@ -53,11 +50,11 @@ resolve_assets() {
     printf 'init-speckit: failed to fetch plugin assets from %s\n' "$REPO_URL" >&2
     return 1
   }
-  if [ -d "$clone_dir/plugin/assets/$variant/.specify" ]; then
-    printf '%s\n' "$clone_dir/plugin/assets/$variant"
+  if [ -d "$clone_dir/plugin/assets/bash/.specify" ]; then
+    printf '%s\n' "$clone_dir/plugin/assets/bash"
     return 0
   fi
-  printf 'init-speckit: fetched repository has no assets/%s variant.\n' "$variant" >&2
+  printf 'init-speckit: fetched repository has no assets/bash.\n' >&2
   return 1
 }
 
@@ -73,22 +70,22 @@ assets="$(resolve_assets)"
 
 [ "$force" -eq 1 ] && printf 'Reinitializing Spec Kit (--force specified)...\n'
 
-# `.specify/` is entirely plugin-owned. Inside `.claude/`, only `skills/speckit-*/`
-# is plugin-owned; every other user file there is left untouched.
+# `.specify/` is entirely plugin-owned.
 rm -rf .specify
-rm -rf .claude/skills/speckit-*
-mkdir -p .claude/skills
 cp -R "$assets/.specify" .specify
-cp -R "$assets/.claude/skills/"speckit-* .claude/skills/
+find .specify -name '*.sh' -exec chmod +x {} +
 
-if [ "$variant" = bash ]; then
-  find .specify -name '*.sh' -exec chmod +x {} +
-fi
+if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  # Standalone: inside `.claude/`, only `skills/speckit-*/` is plugin-owned;
+  # every other user file there is left untouched.
+  rm -rf .claude/skills/speckit-*
+  mkdir -p .claude/skills
+  cp -R "$assets/.claude/skills/"speckit-* .claude/skills/
+  skill_count="$(find .claude/skills -maxdepth 1 -name 'speckit-*' | wc -l | tr -d '[:space:]')"
+  cat <<MSG
+Spec Kit initialized successfully (standalone).
 
-skill_count="$(find .claude/skills -maxdepth 1 -name 'speckit-*' | wc -l | tr -d '[:space:]')"
-
-cat <<MSG
-Spec Kit initialized successfully. (asset variant: $variant)
+Copied .specify/ and $skill_count Spec Kit workflow skills into .claude/skills/.
 
 Installed:
   .claude/skills/         $skill_count Spec Kit workflow skills
@@ -98,4 +95,18 @@ Installed:
   .specify/extensions/    bundled Spec Kit extensions
   .specify/integrations/  integration configuration
 MSG
+else
+  cat <<'MSG'
+Spec Kit initialized successfully (plugin mode).
+
+Copied .specify/. Skills were not copied: the installed plugin already provides them.
+
+Installed:
+  .specify/templates/     spec, plan, tasks, and constitution templates
+  .specify/scripts/       workflow automation scripts
+  .specify/memory/        constitution and project memory
+  .specify/extensions/    bundled Spec Kit extensions
+  .specify/integrations/  integration configuration
+MSG
+fi
 exit 0

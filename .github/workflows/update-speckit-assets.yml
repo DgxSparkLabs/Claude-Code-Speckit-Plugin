@@ -99,31 +99,31 @@ jobs:
             EXT_FLAGS+=(--extension "$line")
           done < speckit-extensions.txt
 
-          for variant_pair in "bash:sh" "ps:ps"; do
-            IFS=':' read -r VARIANT SCRIPT_FLAG <<< "$variant_pair"
-            TARGET_DIR="assets/$VARIANT"
+          TARGET_DIR="assets/bash"
+          echo "═══ Generating bash assets (--script sh) ═══"
 
-            echo "═══ Generating $VARIANT variant (--script $SCRIPT_FLAG) ═══"
+          WORK_DIR="$(mktemp -d)"
 
-            WORK_DIR="$(mktemp -d)"
+          (cd "$WORK_DIR" && specify init . "${INIT_FLAGS[@]}" "${EXT_FLAGS[@]}" --script sh)
 
-            # Generate spec-kit output
-            (cd "$WORK_DIR" && specify init . "${INIT_FLAGS[@]}" "${EXT_FLAGS[@]}" --script "$SCRIPT_FLAG")
+          rm -rf "$TARGET_DIR"
+          mkdir -p "$TARGET_DIR"
+          cp -R "$WORK_DIR/.claude" "$TARGET_DIR/.claude"
+          cp -R "$WORK_DIR/.specify" "$TARGET_DIR/.specify"
+          find "$TARGET_DIR/.specify" -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
 
-            # Replace asset directory contents
-            rm -rf "$TARGET_DIR"
-            mkdir -p "$TARGET_DIR"
-            cp -R "$WORK_DIR/.claude" "$TARGET_DIR/.claude"
-            cp -R "$WORK_DIR/.specify" "$TARGET_DIR/.specify"
+          rm -rf "$WORK_DIR"
+          echo "✅  assets/bash updated"
 
-            # Set script permissions (bash variant)
-            if [ "$VARIANT" = "bash" ]; then
-              find "$TARGET_DIR/.specify" -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
-            fi
-
-            rm -rf "$WORK_DIR"
-            echo "✅  assets/$VARIANT updated"
-          done
+      # ── Sync bundled plugin skills from assets ────────────────────
+      - name: Sync bundled skills
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          set -euo pipefail
+          rm -rf skills/speckit-*
+          mkdir -p skills
+          cp -R assets/bash/.claude/skills/speckit-* skills/
+          echo "Synced skills/speckit-* from assets/bash/.claude/skills/"
 
       # ── Update plugin.json version ────────────────────────────────
       - name: Update plugin.json version
@@ -159,7 +159,8 @@ jobs:
             **Release:** https://github.com/github/spec-kit/releases/tag/${{ steps.latest.outputs.tag }}
 
             Changes:
-            - Regenerated `assets/bash/` and `assets/ps/` from spec-kit ${{ steps.latest.outputs.version }}
+            - Regenerated `assets/bash/` from spec-kit ${{ steps.latest.outputs.version }}
+            - Synced `skills/speckit-*` from `assets/bash/.claude/skills/`
             - Updated `.claude-plugin/plugin.json` version to `${{ steps.latest.outputs.version }}`
             - Regenerated `README.md` via `scripts/generate_readme.py`
           labels: dependencies,automated
