@@ -1,10 +1,8 @@
-# skills-install-test.yml — prove every installable skill is listable and
-# installable via the vercel-labs `npx skills` CLI (project scope).
+# skills-install-test.yml — prove installable skills are listable via `npx skills`
+# and that /speckit:init copies every bundled speckit-* skill into a fresh project.
 #
-# Installable skills live at top-level skills/*/SKILL.md. The speckit-* skills
-# under assets/**/.claude/skills/ are project-scaffold content copied by
-# /speckit:init; they are not installed by this package manager and are out of
-# scope.
+# Job agent-skills: top-level skills/*/SKILL.md via the vercel-labs `npx skills` CLI.
+# Job speckit-init: assets/bash/.claude/skills/speckit-*/SKILL.md via init-speckit.sh.
 
 name: Skills Install Tests
 
@@ -73,3 +71,29 @@ jobs:
             --expected-from-repo . \
             --listing "$RUNNER_TEMP/skills-installed.txt" \
             --installed-root .claude
+
+  speckit-init:
+    name: /speckit:init copies bundled skills
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v10.0.1
+
+      - name: Bootstrap a fresh project and assert every bundled skill
+        run: |
+          set -euo pipefail
+          uv run scripts/list_skills.py --root assets/bash/.claude
+          uv run scripts/list_skills.py --root assets/bash/.claude --json > "$RUNNER_TEMP/speckit-expected.json"
+
+          proj="$(mktemp -d)"
+          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" )
+
+          if ! uv run scripts/assert_skills.py \
+            --expected-json "$RUNNER_TEMP/speckit-expected.json" \
+            --installed-root "$proj/.claude"; then
+            echo "=== $proj/.claude/skills tree ===" >&2
+            find "$proj/.claude/skills" -print 2>/dev/null || true
+            exit 1
+          fi

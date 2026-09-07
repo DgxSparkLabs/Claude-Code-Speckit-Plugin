@@ -17,7 +17,8 @@ Checks (at least one required):
     --plugin-id NAME[@MP]      also resolve `installPath` from Claude Code's
                                `installed_plugins.json` registry
 
-Exit status is non-zero if the expected set is empty or any skill is missing.
+Exit status is non-zero if the expected set is empty, nothing was resolved to
+assert against, or any skill is missing.
 """
 
 from __future__ import annotations
@@ -249,6 +250,17 @@ def main(argv: list[str] | None = None) -> int:
             seen_roots.add(key)
             deduped.append(root)
     search_roots = deduped
+
+    # A run that resolves neither listings nor installed roots has nothing to
+    # assert against; reporting success there would be a vacuous pass. This is
+    # reachable via --plugin-id alone when the registry is missing or lists no
+    # install paths for the plugin.
+    if not listing_texts and not search_roots:
+        print(
+            "error: nothing to assert against: no --listing files and no installed roots resolved",
+            file=sys.stderr,
+        )
+        return 1
 
     missing = False
     for skill in expected:

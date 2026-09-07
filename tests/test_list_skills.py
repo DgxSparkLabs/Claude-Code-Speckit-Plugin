@@ -161,6 +161,30 @@ def test_assert_plugin_registry_install_path() -> None:
         expect(proc.returncode == 0, f"registry path should count: {proc.stdout}\n{proc.stderr}")
 
 
+def test_assert_plugin_id_missing_registry_fails() -> None:
+    """--plugin-id alone against a missing registry must not vacuous-pass."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_skill(root, "demo", "name: demo\n")
+        missing_registry = root / "no-such-registry.json"
+        proc = run(
+            ASSERT_SKILLS,
+            "--expected-from-repo",
+            str(root),
+            "--plugin-id",
+            "speckit@claude-code-speckit-plugin",
+            "--plugin-registry",
+            str(missing_registry),
+        )
+        expect(
+            proc.returncode != 0,
+            f"missing registry must fail: {proc.stdout}\n{proc.stderr}",
+        )
+        expect("plugin registry not found" in proc.stderr, proc.stderr)
+        expect("nothing to assert against" in proc.stderr, proc.stderr)
+        expect("all 1 skill(s) present" not in proc.stdout, proc.stdout)
+
+
 def test_assert_empty_expected_fails() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         listing = Path(tmp) / "listing.txt"
@@ -183,6 +207,7 @@ def main() -> int:
         test_frontmatter_name_and_fallback,
         test_assert_listing_and_installed,
         test_assert_plugin_registry_install_path,
+        test_assert_plugin_id_missing_registry_fails,
         test_assert_empty_expected_fails,
     ]
     for test in tests:
