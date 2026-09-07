@@ -31,6 +31,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.0.1
 
+      - name: Assert speckit-* skills are git symlinks into assets/
+        run: uv run scripts/assert_symlinked_skills.py
+
       - name: Smoke-test skill enumerator and assertions
         run: uv run tests/test_list_skills.py
 

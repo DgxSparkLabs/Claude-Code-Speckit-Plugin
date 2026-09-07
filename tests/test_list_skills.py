@@ -10,6 +10,7 @@ Not a pytest suite: run with `uv run tests/test_list_skills.py`.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -20,6 +21,25 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 LIST_SKILLS = REPO / "scripts" / "list_skills.py"
 ASSERT_SKILLS = REPO / "scripts" / "assert_skills.py"
+
+
+def load_list_skills():
+    spec = importlib.util.spec_from_file_location("list_skills", LIST_SKILLS)
+    if spec is None or spec.loader is None:
+        fail(f"cannot import {LIST_SKILLS}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def try_dir_symlink(target: Path, dest: Path) -> bool:
+    """Create a directory symlink. Return False (skip) if the OS refuses."""
+    try:
+        dest.symlink_to(target, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError) as exc:
+        print(f"SKIP (cannot create directory symlink: {exc})")
+        return False
 
 
 def run(script: Path, *args: str, check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -199,6 +219,44 @@ def test_assert_empty_expected_fails() -> None:
     expect(proc.returncode != 0, "empty expected set must fail")
 
 
+def test_discover_follows_skill_dir_symlink() -> None:
+    """A skills/<name> directory that is a symlink to a real skill must be enumerated."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        real = root / "real" / "speckit-linked"
+        real.mkdir(parents=True)
+        (real / "SKILL.md").write_text(
+            "---\nname: speckit-linked\n---\n\n# skill\n",
+            encoding="utf-8",
+        )
+        skills = root / "skills"
+        skills.mkdir()
+        dest = skills / "speckit-linked"
+        if not try_dir_symlink(real, dest):
+            return
+        found = load_list_skills().discover_skills(root)
+        names = [skill["name"] for skill in found]
+        expect("speckit-linked" in names, f"symlinked skill missing from {found}")
+        linked = next(skill for skill in found if skill["name"] == "speckit-linked")
+        expect(linked["dir"] == "speckit-linked", f"dir: {linked}")
+        expect(linked["path"] == "skills/speckit-linked/SKILL.md", f"path: {linked}")
+
+
+def test_discover_excludes_broken_symlink_without_raising() -> None:
+    """A dangling skills/<name> symlink is skipped; siblings are still found."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_skill(root, "alive", "name: alive\n")
+        dest = root / "skills" / "speckit-dead"
+        missing = root / "missing-target"
+        if not try_dir_symlink(missing, dest):
+            return
+        found = load_list_skills().discover_skills(root)
+        names = [skill["name"] for skill in found]
+        expect("alive" in names, f"sibling skill missing from {found}")
+        expect("speckit-dead" not in names, f"broken symlink must be excluded: {found}")
+
+
 def main() -> int:
     os.chdir(REPO)
     tests = [
@@ -209,6 +267,8 @@ def main() -> int:
         test_assert_plugin_registry_install_path,
         test_assert_plugin_id_missing_registry_fails,
         test_assert_empty_expected_fails,
+        test_discover_follows_skill_dir_symlink,
+        test_discover_excludes_broken_symlink_without_raising,
     ]
     for test in tests:
         print(f"RUN {test.__name__}")
