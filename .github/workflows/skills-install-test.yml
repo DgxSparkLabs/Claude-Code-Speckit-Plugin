@@ -88,7 +88,16 @@ jobs:
           uv run scripts/list_skills.py --root assets/bash/.claude --json > "$RUNNER_TEMP/speckit-expected.json"
 
           proj="$(mktemp -d)"
-          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" )
+          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init.log"
+          if grep -q "Bundled assets not found locally" "$RUNNER_TEMP/init.log"; then
+            echo "ERROR: init-speckit.sh fell back to cloning upstream instead of using the PR checkout" >&2
+            exit 1
+          fi
+
+          for d in assets/bash/.claude/skills/*/; do
+            name="$(basename "$d")"
+            cmp "$proj/.claude/skills/$name/SKILL.md" "$d/SKILL.md"
+          done
 
           if ! uv run scripts/assert_skills.py \
             --expected-json "$RUNNER_TEMP/speckit-expected.json" \
