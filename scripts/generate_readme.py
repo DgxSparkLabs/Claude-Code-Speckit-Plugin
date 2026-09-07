@@ -187,6 +187,9 @@ def render() -> str:
         skills_md.append("")
     skills_section = "\n".join(skills_md).rstrip()
 
+    skill_count = len(skills)
+    workflow_count = sum(1 for s in skills if s["name"] != "init")
+
     tagline, commands = specify_commands()
     cli_rows = [(f"`{c}`", d) for c, d in commands]
     cli_table = md_table(cli_rows, ("Command", "Description"))
@@ -223,6 +226,10 @@ The upstream Spec Kit CLI requires Python. This plugin bundles the generated ass
 - Native package management: install, update, and remove it like any other plugin from Claude Code.
 - CLI compatible: projects initialized by the plugin remain fully compatible with the `specify` CLI if you later switch.
 
+## Requirements
+
+Installing the plugin needs either the Claude Code CLI or the `skills` CLI from Vercel, which runs through Node.js with `npx`. Running the workflow needs a bash shell, because the bundled Spec Kit scripts are `.sh` files: on native Windows use Git Bash or WSL. Nothing else is required at runtime, in particular no Python and no `specify` CLI, because the plugin ships the pre-generated assets.
+
 ## Installation
 
 ### Claude Code
@@ -233,6 +240,14 @@ Install at project scope so the plugin is shared with the team via `.claude/sett
 claude plugin marketplace add {REPO} --scope project
 claude plugin install {plugin_name}@{marketplace_name} --scope project
 ```
+
+After installing, list the skills the plugin contributes:
+
+```bash
+claude plugin details {plugin_name}@{marketplace_name}
+```
+
+The command prints the plugin's component inventory, where the `Skills (N)` line names every skill the plugin installs.
 
 ### Agent Skills (`npx skills add`)
 
@@ -269,6 +284,28 @@ After updating the plugin, re-initialize your project to pick up the latest asse
 /{plugin_name}:init --force
 ```
 
+## Removing
+
+### Claude Code
+
+Uninstall the plugin from the scope it was installed into, then drop the marketplace entry if nothing else is installed from it:
+
+```bash
+claude plugin uninstall {plugin_name}@{marketplace_name} --scope project
+claude plugin marketplace remove {marketplace_name} --scope project
+```
+
+### Agent Skills (`npx skills remove`)
+
+Remove the skills the `skills` CLI installed. Running `npx skills list` shows what is installed and `npx skills remove` opens an interactive selection; pass names to remove them without prompting, add `-g` for a global install, or use `--all` to remove every skill the CLI manages in that scope:
+
+```bash
+npx skills list
+npx skills remove init
+```
+
+Neither route touches the `.specify/` tree or the specs already generated in your project, so delete those yourself if you no longer want them.
+
 ## Quick Start
 
 1. Initialize your project with Spec Kit infrastructure:
@@ -296,7 +333,11 @@ After updating the plugin, re-initialize your project to pick up the latest asse
    /{plugin_name}:speckit-implement
    ```
 
+`/{plugin_name}:init` auto-detects whether it is running as an installed plugin or as a standalone skill, and copies the workflow skills only in standalone mode. Pass `--skills` to force the copy or `--no-skills` to skip it, and `--force` to reinitialize over an existing `.specify/` directory.
+
 ## Available Skills
+
+The plugin ships {skill_count} skills: `init`, which bootstraps a project, plus {workflow_count} workflow skills.
 
 {skills_section}
 
@@ -330,6 +371,16 @@ A [GitHub Actions workflow](/.github/workflows/update-speckit-assets.yml) runs d
 3. Bump: `.claude-plugin/plugin.json` is updated to the new version.
 4. README: `scripts/generate_readme.py` refreshes the skill catalog and CLI reference.
 5. PR: the workflow opens a pull request (for example, `auto/update-speckit-<version>`) and enables auto-merge, so a clean update with no conflicts merges once checks pass.
+
+## Troubleshooting
+
+`A .specify/ directory already exists in this project.` means the project was already initialized and `init` refused to overwrite anything. Rerun `/{plugin_name}:init --force` to reinitialize over the existing directory.
+
+`Bundled assets not found locally; fetching them from ...` means `init` found no bundled assets next to the skill or under `$CLAUDE_PLUGIN_ROOT` and fell back to a shallow clone of this repository. That fallback is expected only for a bare standalone install with no local assets and no reachable plugin root; seeing it from a plugin install means the plugin directory is incomplete, so reinstall the plugin.
+
+Skills that do not appear, or a `Skills (0)` inventory, mean the agent loaded none of the plugin's components. Confirm what is installed with `claude plugin details {plugin_name}@{marketplace_name}` for the plugin route, or with `npx skills add {REPO} --list` for the Agent Skills route.
+
+On native Windows the bundled `.sh` scripts need a bash shell: run the workflow from Git Bash or WSL, because `cmd.exe` and PowerShell cannot execute them.
 
 ## License
 
