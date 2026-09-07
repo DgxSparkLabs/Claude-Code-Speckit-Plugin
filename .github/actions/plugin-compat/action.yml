@@ -51,7 +51,7 @@ runs:
       run: claude plugin list | grep -F "${{ steps.id.outputs.plugin }}"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v10
+      uses: astral-sh/setup-uv@v10.0.1
 
     - name: Assert every plugin skill is present after install
       shell: bash

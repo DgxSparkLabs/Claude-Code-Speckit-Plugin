@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: "22"
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.1
 
       - name: Smoke-test skill enumerator and assertions
         run: uv run tests/test_list_skills.py
