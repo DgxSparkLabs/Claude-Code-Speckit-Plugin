@@ -16,7 +16,10 @@ runs:
     - name: Install Claude Code CLI
       shell: bash
       run: |
-        npm install -g @anthropic-ai/claude-code@${{ inputs.claude-version }}
+        # Official installer (Windows/PowerShell equivalent: powershell irm https://claude.ai/install.ps1 | iex)
+        curl -fsSL https://claude.ai/install.sh | bash
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        export PATH="$HOME/.local/bin:$PATH"
         claude --version
 
     - name: Derive marketplace and plugin identity
