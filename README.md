@@ -8,7 +8,7 @@
 
 [![Compat Tests](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml) [![Update Spec Kit Assets](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml) ![Spec Kit](https://img.shields.io/badge/spec--kit-v1.0.4-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
-A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code and Copilot CLI plugin that installs [Spec Kit](https://github.com/github/spec-kit) into any project. It bundles the spec-kit templates, scripts, and workflow skills so you can run the full specification-driven workflow without installing Python or the `specify` CLI.
+A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that installs [Spec Kit](https://github.com/github/spec-kit) into any project. It bundles the spec-kit templates, scripts, and workflow skills so you can run the full specification-driven workflow without installing Python or the `specify` CLI.
 
 This plugin is an independent port of the upstream Spec Kit project and is not affiliated with or endorsed by GitHub.
 
@@ -16,7 +16,7 @@ This plugin is an independent port of the upstream Spec Kit project and is not a
 
 The upstream Spec Kit CLI requires Python. This plugin bundles the generated assets as a native agent plugin, which means:
 
-- Native package management: install, update, and remove it like any other plugin from the Claude or Copilot CLI.
+- Native package management: install, update, and remove it like any other plugin from Claude Code.
 - CLI compatible: projects initialized by the plugin remain fully compatible with the `specify` CLI if you later switch.
 
 ## Installation
@@ -28,10 +28,25 @@ claude plugin marketplace add DgxSparkLabs/Claude-Code-Speckit-Plugin
 claude plugin install speckit@claude-code-speckit-plugin
 ```
 
-### GitHub Copilot CLI
+### Agent Skills (`npx skills add`)
+
+This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). Install the Spec Kit init skill into a project without the Claude Code plugin:
 
 ```bash
-copilot plugin install DgxSparkLabs/Claude-Code-Speckit-Plugin
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin
+```
+
+List skills first, or install only `init`:
+
+```bash
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --list
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill init
+```
+
+Direct skill path:
+
+```bash
+npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/init
 ```
 
 ## Updating
@@ -81,7 +96,7 @@ After updating the plugin, re-initialize your project to pick up the latest asse
 
 | Skill | Command | Description |
 |---|---|---|
-| init | `/speckit:init` | Initialize a new project with the Spec Kit workflow infrastructure. Copies .specify/ and .claude/ directories with scripts, templates, skills, and extensions. |
+| init | `/speckit:init` | Initialize a new project with the Spec Kit workflow infrastructure. Copies .specify/ and .claude/ directories with scripts, templates, skills, and extensions. User-invocable only — run /speckit:init; do not auto-invoke. |
 | speckit-clarify | `/speckit-clarify` | Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec. |
 | speckit-constitution | `/speckit-constitution` | Create or update the project constitution from interactive or provided principle inputs. |
 | speckit-converge | `/speckit-converge` | Assess the current codebase against the feature's spec, plan, and tasks, then append any remaining unbuilt work as new tasks to tasks.md so implement can complete it. |
@@ -131,7 +146,7 @@ The plugin assets are generated from the upstream `specify` CLI and kept in sync
 
 ### Generation Process
 
-1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled `git` extension.
+1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled Spec Kit extensions.
 2. The resulting `.claude/` and `.specify/` directories are copied into the matching `assets/{bash,ps}/` folder.
 3. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
 

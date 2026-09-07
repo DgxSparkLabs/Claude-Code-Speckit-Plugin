@@ -220,7 +220,7 @@ def render() -> str:
 
 {badges}
 
-A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code and Copilot CLI plugin that installs [Spec Kit](https://github.com/github/spec-kit) into any project. It bundles the spec-kit templates, scripts, and workflow skills so you can run the full specification-driven workflow without installing Python or the `specify` CLI.
+A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that installs [Spec Kit](https://github.com/github/spec-kit) into any project. It bundles the spec-kit templates, scripts, and workflow skills so you can run the full specification-driven workflow without installing Python or the `specify` CLI.
 
 This plugin is an independent port of the upstream Spec Kit project and is not affiliated with or endorsed by GitHub.
 
@@ -228,7 +228,7 @@ This plugin is an independent port of the upstream Spec Kit project and is not a
 
 The upstream Spec Kit CLI requires Python. This plugin bundles the generated assets as a native agent plugin, which means:
 
-- Native package management: install, update, and remove it like any other plugin from the Claude or Copilot CLI.
+- Native package management: install, update, and remove it like any other plugin from Claude Code.
 - CLI compatible: projects initialized by the plugin remain fully compatible with the `specify` CLI if you later switch.
 
 ## Installation
@@ -240,10 +240,25 @@ claude plugin marketplace add {REPO}
 claude plugin install {plugin_name}@{marketplace_name}
 ```
 
-### GitHub Copilot CLI
+### Agent Skills (`npx skills add`)
+
+This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). Install the Spec Kit init skill into a project without the Claude Code plugin:
 
 ```bash
-copilot plugin install {REPO}
+npx skills add {REPO}
+```
+
+List skills first, or install only `init`:
+
+```bash
+npx skills add {REPO} --list
+npx skills add {REPO} --skill init
+```
+
+Direct skill path:
+
+```bash
+npx skills add https://github.com/{REPO}/tree/main/skills/init
 ```
 
 ## Updating
@@ -303,7 +318,7 @@ The plugin assets are generated from the upstream `specify` CLI and kept in sync
 
 ### Generation Process
 
-1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled `git` extension.
+1. For each variant (bash, PowerShell), `specify init` runs with the appropriate flags and installs the bundled Spec Kit extensions.
 2. The resulting `.claude/` and `.specify/` directories are copied into the matching `assets/{{bash,ps}}/` folder.
 3. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
 
