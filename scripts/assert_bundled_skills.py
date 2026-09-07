@@ -69,11 +69,13 @@ def rel_files(root: Path) -> dict[str, Path]:
     return files
 
 
-def compare_trees(src: Path, dst: Path, label: str, source_rel: Path) -> list[str]:
+def compare_trees(
+    src: Path, dst: Path, label: str, source_rel: Path, bundle_rel: Path
+) -> list[str]:
     """Return error messages if `dst` is not a byte-identical copy of `src`."""
     errors: list[str] = []
     src_shown = source_rel.as_posix()
-    dst_shown = dst.as_posix()
+    dst_shown = bundle_rel.as_posix()
     if not src.is_dir():
         errors.append(f"{label}: missing source {src_shown}")
         return errors
@@ -148,14 +150,14 @@ def main(argv: list[str] | None = None) -> int:
     verified = 0
     for name in sorted(set(source) & set(bundle)):
         tree_errors = compare_trees(
-            source[name], bundle[name], name, SOURCE_REL / name
+            source[name], bundle[name], name, SOURCE_REL / name, BUNDLE_REL / name
         )
         errors.extend(tree_errors)
         if not tree_errors:
             verified += 1
 
     errors.extend(
-        compare_trees(init_source, init_bundle, INIT_NAME, INIT_SOURCE_REL)
+        compare_trees(init_source, init_bundle, INIT_NAME, INIT_SOURCE_REL, BUNDLE_REL / INIT_NAME)
     )
 
     expected = {INIT_NAME, *source}
