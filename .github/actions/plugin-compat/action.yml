@@ -76,15 +76,27 @@ runs:
         find "${PLUGIN_HOME}" -name SKILL.md -print 2>/dev/null || true
 
         # Claude Code has no `claude skills` / `claude plugin skills` subcommand
-        # (https://code.claude.com/docs/en/cli-reference). Plugin skills are
-        # discovered from <plugin>/skills/<name>/SKILL.md once the marketplace
-        # plugin is copied into ~/.claude/plugins/cache
+        # (https://code.claude.com/docs/en/cli-reference). `claude plugin details`
+        # is the authoritative component inventory; the Skills group includes both
+        # skills/ and commands/ entries
+        # (https://code.claude.com/docs/en/plugins-reference#plugin-details).
+        # Plugin files are also discovered from <plugin>/skills/<name>/SKILL.md
+        # once the marketplace plugin is copied into ~/.claude/plugins/cache
         # (https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution,
         #  https://code.claude.com/docs/en/skills#where-skills-live).
+        echo "=== claude plugin details ==="
+        details_out="$RUNNER_TEMP/claude-skill-details.txt"
+        PLUGIN_NAME="${PLUGIN_ID%%@*}"
+        if ! claude plugin details "$PLUGIN_ID" | tee "$details_out"; then
+          echo "claude plugin details rejected ${PLUGIN_ID}; retrying as ${PLUGIN_NAME}"
+          claude plugin details "$PLUGIN_NAME" | tee "$details_out"
+        fi
+
         uv run scripts/assert_skills.py \
           --expected-from-repo . \
           --plugin-id "${PLUGIN_ID}" \
-          --installed-root "${PLUGIN_HOME}"
+          --installed-root "${PLUGIN_HOME}" \
+          --listing "$details_out"
 
     - name: Validate marketplace (fails non-zero on real errors)
       shell: bash
