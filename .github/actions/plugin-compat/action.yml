@@ -1,8 +1,10 @@
 name: Plugin Compat Check
 description: >-
   Register this repository's marketplace with the Claude CLI, install the
-  plugin, assert both are listed, and validate the manifest. Fails the job if
-  the plugin no longer registers, installs, lists, or validates.
+  plugin, assert the plugin and every installable skill are present, and
+  validate the manifest. Fails the job if the plugin no longer registers,
+  installs, lists, or validates, or if a skills/*/SKILL.md skill is missing
+  from the installed plugin path.
 
 inputs:
   claude-version:
@@ -47,6 +49,42 @@ runs:
     - name: Assert plugin is listed
       shell: bash
       run: claude plugin list | grep -F "${{ steps.id.outputs.plugin }}"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.0.1
+
+    - name: Assert every plugin skill is present after install
+      shell: bash
+      env:
+        PLUGIN_ID: "${{ steps.id.outputs.plugin }}@${{ steps.id.outputs.marketplace }}"
+      run: |
+        set -euo pipefail
+        echo "Enumerated installable skills (skills/*/SKILL.md):"
+        uv run scripts/list_skills.py
+
+        echo "=== claude plugin list --json ==="
+        claude plugin list --json || true
+
+        PLUGIN_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins"
+        echo "=== ${PLUGIN_HOME}/installed_plugins.json ==="
+        if [ -f "${PLUGIN_HOME}/installed_plugins.json" ]; then
+          cat "${PLUGIN_HOME}/installed_plugins.json"
+        else
+          echo "(missing)"
+        fi
+        echo "=== SKILL.md under ${PLUGIN_HOME} ==="
+        find "${PLUGIN_HOME}" -name SKILL.md -print 2>/dev/null || true
+
+        # Claude Code has no `claude skills` / `claude plugin skills` subcommand
+        # (https://code.claude.com/docs/en/cli-reference). Plugin skills are
+        # discovered from <plugin>/skills/<name>/SKILL.md once the marketplace
+        # plugin is copied into ~/.claude/plugins/cache
+        # (https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution,
+        #  https://code.claude.com/docs/en/skills#where-skills-live).
+        uv run scripts/assert_skills.py \
+          --expected-from-repo . \
+          --plugin-id "${PLUGIN_ID}" \
+          --installed-root "${PLUGIN_HOME}"
 
     - name: Validate marketplace (fails non-zero on real errors)
       shell: bash
