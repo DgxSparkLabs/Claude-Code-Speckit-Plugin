@@ -355,7 +355,7 @@ The plugin assets are generated from the upstream `specify` CLI and kept in sync
 
 1. `specify init` runs with `--script sh` and the bundled Spec Kit extensions.
 2. The resulting `.claude/` and `.specify/` directories are copied into `assets/bash/`.
-3. `skills/speckit-*` is mirrored from `assets/bash/.claude/skills/` so the plugin and `npx skills` both discover the workflow skills.
+3. `scripts/build_skills.py` rebuilds the top-level `skills/` tree wholesale from `assets/skills/init` (our authored init skill) and `assets/bash/.claude/skills/speckit-*` (generated). The tree is a build artifact: it is safe to delete and regenerate.
 4. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
 
 ### How `init` Bootstraps a Project
@@ -367,7 +367,7 @@ When a user runs `/{plugin_name}:init`, the plugin copies the pre-generated `.sp
 A [GitHub Actions workflow](/.github/workflows/update-speckit-assets.yml) runs daily to keep the plugin in sync:
 
 1. Detect: the workflow checks the [latest stable release](https://github.com/github/spec-kit/releases) of `github/spec-kit` and compares it to the version in `.claude-plugin/plugin.json`. Pre-release versions (dev, alpha, beta, rc) are skipped.
-2. Regenerate: if a newer stable release exists, `assets/bash/` is regenerated from scratch and `skills/speckit-*` is re-synced from it.
+2. Regenerate: if a newer stable release exists, `assets/bash/` is regenerated from scratch and `skills/` is rebuilt wholesale from `assets/skills/init` plus the new `assets/bash/.claude/skills/speckit-*`.
 3. Bump: `.claude-plugin/plugin.json` is updated to the new version.
 4. README: `scripts/generate_readme.py` refreshes the skill catalog and CLI reference.
 5. PR: the workflow opens a pull request (for example, `auto/update-speckit-<version>`) and enables auto-merge, so a clean update with no conflicts merges once checks pass.
