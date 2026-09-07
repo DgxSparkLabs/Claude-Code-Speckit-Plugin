@@ -18,7 +18,7 @@ Bundled Spec Kit extensions are declared in [`speckit-extensions.txt`](speckit-e
 
 ## Plugin init command
 
-The plugin's init command lives under `skills/` (`skills/init`). `/speckit:init` always copies the pre-generated `.specify/` tree from `assets/bash/` into the user's project. It copies `.claude/skills/speckit-*` only in standalone mode (`CLAUDE_PLUGIN_ROOT` unset); when the plugin is installed those skills are already provided.
+The plugin's init command lives under `skills/` (`skills/init`). `/speckit:init` always copies the pre-generated `.specify/` tree from `assets/bash/` into the user's project. It copies `.claude/skills/speckit-*` only in standalone mode, detected by the absence of `.claude-plugin/plugin.json` two levels above the init skill directory (an npx-installed `.claude/skills/init` has no such ancestor; a plugin install does). `--skills` / `--no-skills` override the detection. When the plugin is installed those skills are already provided, so they are skipped by default.
 
 ## Compat CI
 

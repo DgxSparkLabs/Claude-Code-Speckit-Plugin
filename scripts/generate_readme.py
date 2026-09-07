@@ -319,7 +319,7 @@ The plugin assets are generated from the upstream `specify` CLI and kept in sync
 
 ### How `init` Bootstraps a Project
 
-When a user runs `/{plugin_name}:init`, the plugin copies the pre-generated `.specify/` tree into the project root. Spec Kit workflow skills are copied into `.claude/skills/` only in standalone mode (`CLAUDE_PLUGIN_ROOT` unset); when the plugin is installed they are already provided. Native Windows uses Git Bash or WSL for the bundled `.sh` scripts. No Python or `specify` CLI is required. User content in `.claude/` is preserved: only plugin-owned paths are replaced.
+When a user runs `/{plugin_name}:init`, the plugin copies the pre-generated `.specify/` tree into the project root. Spec Kit workflow skills are copied into `.claude/skills/` only in standalone mode, detected by the absence of `.claude-plugin/plugin.json` two levels above the init skill directory (an npx-installed `.claude/skills/init` has no such ancestor; a plugin install does). `--skills` / `--no-skills` override the detection. When the plugin is installed they are already provided, so they are skipped by default. Native Windows uses Git Bash or WSL for the bundled `.sh` scripts. No Python or `specify` CLI is required. User content in `.claude/` is preserved: only plugin-owned paths are replaced.
 
 ### Staying Aligned With Upstream
 

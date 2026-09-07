@@ -2,7 +2,7 @@
 # and that /speckit:init behaves correctly in standalone and plugin modes.
 #
 # Job agent-skills: top-level skills/*/SKILL.md via the vercel-labs `npx skills` CLI.
-# Job speckit-init: standalone copies speckit-* skills; plugin mode copies only .specify/.
+# Job speckit-init: layout-based detection plus --skills/--no-skills overrides.
 
 name: Skills Install Tests
 
@@ -76,7 +76,7 @@ jobs:
             --installed-root .claude
 
   speckit-init:
-    name: /speckit:init standalone and plugin modes
+    name: /speckit:init layout detection and overrides
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -84,50 +84,90 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Standalone init copies .specify/ and every bundled skill
+      - name: Layout detection and --skills/--no-skills overrides
         run: |
           set -euo pipefail
-          uv run scripts/list_skills.py --root assets/bash/.claude
-          uv run scripts/list_skills.py --root assets/bash/.claude --json > "$RUNNER_TEMP/speckit-expected.json"
 
+          expected_count=0
+          for d in assets/bash/.claude/skills/speckit-*/; do
+            expected_count=$((expected_count + 1))
+          done
+          if [ "$expected_count" -ne 15 ]; then
+            echo "ERROR: expected 15 speckit-* skills under assets/bash/.claude/skills/, found $expected_count" >&2
+            exit 1
+          fi
+
+          assert_specify() {
+            local proj="$1" label="$2"
+            if [ ! -d "$proj/.specify" ]; then
+              echo "ERROR: $label did not create .specify/" >&2
+              exit 1
+            fi
+          }
+
+          assert_skills_copied() {
+            local proj="$1" label="$2"
+            local name
+            for d in assets/bash/.claude/skills/speckit-*/; do
+              name="$(basename "$d")"
+              cmp "$proj/.claude/skills/$name/SKILL.md" "$d/SKILL.md"
+            done
+            echo "$label: .specify/ present and all $expected_count speckit-* skills copied"
+          }
+
+          assert_skills_absent() {
+            local proj="$1" label="$2"
+            local extras
+            extras="$(find "$proj/.claude/skills" -maxdepth 1 -name 'speckit-*' 2>/dev/null || true)"
+            if [ -n "$extras" ]; then
+              echo "ERROR: $label copied speckit-* skills:" >&2
+              echo "$extras" >&2
+              exit 1
+            fi
+            echo "$label: .specify/ present and no speckit-* skills copied"
+          }
+
+          # (a) STANDALONE via layout: stage the skill so its ../../ has NO
+          # plugin.json, mimicking an npx install. CLAUDE_PLUGIN_ROOT is set
+          # ONLY to resolve assets; detection must still be standalone.
           proj="$(mktemp -d)"
-          ( cd "$proj" && bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init-standalone.log"
+          stage="$(mktemp -d)"
+          mkdir -p "$stage/.claude/skills"
+          cp -R skills/init "$stage/.claude/skills/init"
+          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$stage/.claude/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init-standalone.log"
           if grep -q "Bundled assets not found locally" "$RUNNER_TEMP/init-standalone.log"; then
+            echo "ERROR: standalone layout fell back to cloning instead of using CLAUDE_PLUGIN_ROOT for assets" >&2
+            exit 1
+          fi
+          assert_specify "$proj" "standalone layout"
+          assert_skills_copied "$proj" "standalone layout"
+
+          # (b) PLUGIN via layout: run the repo script directly.
+          # $SKILL_DIR/../../ is $GITHUB_WORKSPACE, which HAS plugin.json.
+          proj="$(mktemp -d)"
+          ( cd "$proj" && bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init-plugin.log"
+          if grep -q "Bundled assets not found locally" "$RUNNER_TEMP/init-plugin.log"; then
             echo "ERROR: init-speckit.sh fell back to cloning upstream instead of using the PR checkout" >&2
             exit 1
           fi
-          if [ ! -d "$proj/.specify" ]; then
-            echo "ERROR: standalone init did not create .specify/" >&2
-            exit 1
-          fi
+          assert_specify "$proj" "plugin layout"
+          assert_skills_absent "$proj" "plugin layout"
 
-          for d in assets/bash/.claude/skills/*/; do
-            name="$(basename "$d")"
-            cmp "$proj/.claude/skills/$name/SKILL.md" "$d/SKILL.md"
-          done
-
-          if ! uv run scripts/assert_skills.py \
-            --expected-json "$RUNNER_TEMP/speckit-expected.json" \
-            --installed-root "$proj/.claude"; then
-            echo "=== $proj/.claude/skills tree ===" >&2
-            find "$proj/.claude/skills" -print 2>/dev/null || true
-            exit 1
-          fi
-          echo "standalone init: .specify/ present and all speckit-* skills copied"
-
-      - name: Plugin-mode init copies .specify/ and skips skills
-        run: |
-          set -euo pipefail
+          # (c) OVERRIDE --no-skills in the standalone layout.
           proj="$(mktemp -d)"
-          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" ) 2>&1 | tee "$RUNNER_TEMP/init-plugin.log"
-          if [ ! -d "$proj/.specify" ]; then
-            echo "ERROR: plugin-mode init did not create .specify/" >&2
+          stage="$(mktemp -d)"
+          mkdir -p "$stage/.claude/skills"
+          cp -R skills/init "$stage/.claude/skills/init"
+          ( cd "$proj" && CLAUDE_PLUGIN_ROOT="$GITHUB_WORKSPACE" bash "$stage/.claude/skills/init/scripts/init-speckit.sh" --no-skills ) 2>&1 | tee "$RUNNER_TEMP/init-no-skills.log"
+          assert_specify "$proj" "standalone --no-skills"
+          assert_skills_absent "$proj" "standalone --no-skills"
+
+          # (d) OVERRIDE --skills in the plugin layout.
+          proj="$(mktemp -d)"
+          ( cd "$proj" && bash "$GITHUB_WORKSPACE/skills/init/scripts/init-speckit.sh" --skills ) 2>&1 | tee "$RUNNER_TEMP/init-skills.log"
+          if grep -q "Bundled assets not found locally" "$RUNNER_TEMP/init-skills.log"; then
+            echo "ERROR: --skills plugin layout fell back to cloning upstream instead of using the PR checkout" >&2
             exit 1
           fi
-          extras="$(find "$proj/.claude/skills" -maxdepth 1 -name 'speckit-*' 2>/dev/null || true)"
-          if [ -n "$extras" ]; then
-            echo "ERROR: plugin-mode init copied speckit-* skills; the plugin already provides them:" >&2
-            echo "$extras" >&2
-            exit 1
-          fi
-          echo "plugin-mode init: .specify/ present and no speckit-* skills copied"
+          assert_specify "$proj" "plugin --skills"
+          assert_skills_copied "$proj" "plugin --skills"

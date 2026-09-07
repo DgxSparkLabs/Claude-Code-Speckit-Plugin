@@ -2,9 +2,12 @@
 # Bootstrap the current directory with Spec Kit (no-Python equivalent of `specify init`).
 #
 # Always copies `.specify/` (the runtime every skill needs). Copies
-# `.claude/skills/speckit-*/` only when CLAUDE_PLUGIN_ROOT is unset
-# (standalone). When CLAUDE_PLUGIN_ROOT is set (installed-plugin route), the
-# plugin already provides those skills, so they are not copied.
+# `.claude/skills/speckit-*/` only in standalone mode. The mode is detected
+# from the on-disk layout: a `.claude-plugin/plugin.json` two levels above
+# this skill directory means the installed plugin already provides those
+# skills (plugin mode -> skills skipped); without it the install is
+# standalone (-> skills copied). `--skills` / `--no-skills` force either
+# behavior.
 #
 # Exit codes: 0 = initialized, 2 = already initialized (pass --force), 1 = error.
 set -euo pipefail
@@ -13,9 +16,12 @@ REPO_URL="https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin.git"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 force=0
+copy_skills=""
 for arg in "$@"; do
   case "$arg" in
     --force) force=1 ;;
+    --skills) copy_skills=1 ;;
+    --no-skills) copy_skills=0 ;;
     "") ;;
     *) printf 'init-speckit: unknown argument: %s\n' "$arg" >&2; exit 1 ;;
   esac
@@ -75,7 +81,32 @@ rm -rf .specify
 cp -R "$assets/.specify" .specify
 find .specify -name '*.sh' -exec chmod +x {} +
 
-if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+# Skill-copy mode. Detected from the on-disk layout: a plugin install keeps
+# `.claude-plugin/plugin.json` at the plugin root two levels above this skill
+# directory, while an npx-installed `.claude/skills/init` has no such
+# ancestor. Explicit --skills / --no-skills win over the detection.
+if [ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]; then
+  detected_mode="plugin"
+else
+  detected_mode="standalone"
+fi
+
+if [ -n "$copy_skills" ]; then
+  if [ "$copy_skills" -eq 1 ]; then
+    mode_note="$detected_mode mode detected, --skills override"
+  else
+    mode_note="$detected_mode mode detected, --no-skills override"
+  fi
+else
+  mode_note="$detected_mode mode detected"
+  if [ "$detected_mode" = "plugin" ]; then
+    copy_skills=0
+  else
+    copy_skills=1
+  fi
+fi
+
+if [ "$copy_skills" -eq 1 ]; then
   # Standalone: inside `.claude/`, only `skills/speckit-*/` is plugin-owned;
   # every other user file there is left untouched.
   rm -rf .claude/skills/speckit-*
@@ -83,7 +114,7 @@ if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   cp -R "$assets/.claude/skills/"speckit-* .claude/skills/
   skill_count="$(find .claude/skills -maxdepth 1 -name 'speckit-*' | wc -l | tr -d '[:space:]')"
   cat <<MSG
-Spec Kit initialized successfully (standalone).
+Spec Kit initialized successfully ($mode_note).
 
 Copied .specify/ and $skill_count Spec Kit workflow skills into .claude/skills/.
 
@@ -96,8 +127,8 @@ Installed:
   .specify/integrations/  integration configuration
 MSG
 else
-  cat <<'MSG'
-Spec Kit initialized successfully (plugin mode).
+  cat <<MSG
+Spec Kit initialized successfully ($mode_note).
 
 Copied .specify/. Skills were not copied: the installed plugin already provides them.
 
