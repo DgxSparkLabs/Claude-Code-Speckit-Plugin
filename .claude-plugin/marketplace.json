@@ -1,7 +1,7 @@
 {
-  "name": "speckit-community",
+  "name": "claude-code-speckit-plugin",
   "owner": {
-    "name": "Spec Kit Community"
+    "name": "DgxSparkLabs"
   },
   "metadata": {
     "description": "Specification-driven development workflow plugins"

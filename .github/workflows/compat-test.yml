@@ -1,0 +1,66 @@
+# compat-test.yml — verify the plugin registers, installs, and lists cleanly
+#
+# Modeled on the DgxSparkLabs/marketplace-template compat suite: it drives the
+# real Claude Code CLI against this repository's marketplace so a broken
+# manifest or missing skill surfaces as a red check on the PR.
+
+name: Compat Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "feat/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code@latest
+          claude --version
+
+      - name: Derive marketplace and plugin identity
+        id: id
+        run: |
+          MP=$(jq -r '.name' .claude-plugin/marketplace.json)
+          PLUGIN=$(jq -r '.plugins[0].name' .claude-plugin/marketplace.json)
+          echo "marketplace=$MP" >> "$GITHUB_OUTPUT"
+          echo "plugin=$PLUGIN" >> "$GITHUB_OUTPUT"
+          echo "Marketplace: $MP  Plugin: $PLUGIN"
+
+      - name: Register marketplace
+        run: claude plugin marketplace add ./
+
+      - name: Assert marketplace is listed
+        run: claude plugin marketplace list | grep -F "${{ steps.id.outputs.marketplace }}"
+
+      - name: Install the plugin
+        run: claude plugin install ${{ steps.id.outputs.plugin }}@${{ steps.id.outputs.marketplace }} --scope project
+
+      - name: Assert plugin is listed
+        run: claude plugin list | grep -F "${{ steps.id.outputs.plugin }}"
+
+      - name: Validate marketplace (fail on any error)
+        run: |
+          out=$(claude plugin validate ./ 2>&1)
+          echo "$out"
+          if echo "$out" | grep -qiE 'error'; then
+            echo "ERROR: validate output reported an error"
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          claude plugin uninstall ${{ steps.id.outputs.plugin }} --scope project || true
+          claude plugin prune --scope project -y || true
+          claude plugin marketplace remove ${{ steps.id.outputs.marketplace }} || true
