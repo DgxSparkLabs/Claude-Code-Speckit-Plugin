@@ -65,6 +65,30 @@ def make_scripts_executable(root: Path) -> int:
     return count
 
 
+def rel_files(root: Path) -> dict[str, Path]:
+    files: dict[str, Path] = {}
+    if not root.is_dir():
+        return files
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        filenames.sort()
+        for name in filenames:
+            path = Path(dirpath) / name
+            files[path.relative_to(root).as_posix()] = path
+    return files
+
+
+def trees_byte_identical(src: Path, dst: Path) -> bool:
+    """True when `dst` has the same relative files and bytes as `src`."""
+    src_files = rel_files(src)
+    dst_files = rel_files(dst)
+    if set(src_files) != set(dst_files):
+        return False
+    return all(
+        src_files[rel].read_bytes() == dst_files[rel].read_bytes() for rel in src_files
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -99,6 +123,14 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+
+    init_bundle = bundle / INIT_NAME
+    if init_bundle.is_dir() and not trees_byte_identical(init_source, init_bundle):
+        print(
+            "warning: skills/init has local edits that will be discarded; "
+            "edit the source assets/skills/init/ and rerun scripts/build_skills.py",
+            file=sys.stderr,
+        )
 
     # Wholesale wipe: this is what destroys dangling entries.
     shutil.rmtree(bundle, ignore_errors=True)
