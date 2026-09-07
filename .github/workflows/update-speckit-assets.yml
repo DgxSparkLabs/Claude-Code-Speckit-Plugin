@@ -157,9 +157,15 @@ jobs:
           labels: dependencies,automated
           delete-branch: true
 
-      # ── Enable auto-merge (merges once checks pass; waits on conflicts) ─
+      # ── Enable auto-merge ─────────────────────────────────────────
+      # `--auto` waits for required checks when the PR was opened with a PAT
+      # (so compat-test.yml runs); with GITHUB_TOKEN no checks fire and GitHub
+      # rejects `--auto` on an already-clean PR, so fall back to a direct merge.
+      # Either path refuses to merge a PR that has conflicts.
       - name: Enable auto-merge
         if: steps.check.outputs.needs_update == 'true' && steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.SPECKIT_PAT || secrets.GITHUB_TOKEN }}
-        run: gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge
+        run: |
+          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge \
+            || gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge

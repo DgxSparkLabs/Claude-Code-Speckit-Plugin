@@ -86,6 +86,8 @@ def collect_skills(plugin_name: str) -> list[dict]:
             }
         )
 
+    if not skills:
+        sys.exit("error: found no skills under skills/ or assets/**/skills")
     return skills
 
 
@@ -102,6 +104,11 @@ def specify_commands() -> tuple[str, list[tuple[str, str]]]:
         sys.exit(
             "error: 'specify' CLI not found. Install it first:\n"
             "  uv tool install specify-cli --from git+https://github.com/github/spec-kit.git"
+        )
+
+    if proc.returncode != 0:
+        sys.exit(
+            f"error: 'specify --help' exited {proc.returncode}:\n{proc.stderr.strip()}"
         )
 
     lines = [ANSI.sub("", ln).rstrip() for ln in proc.stdout.splitlines()]
@@ -141,6 +148,11 @@ def specify_commands() -> tuple[str, list[tuple[str, str]]]:
             desc = parts[1].strip() if len(parts) > 1 else ""
             commands.append((cmd, desc))
 
+    if not commands:
+        sys.exit(
+            "error: parsed no commands from 'specify --help'; the CLI output "
+            "format may have changed"
+        )
     return tagline, commands
 
 

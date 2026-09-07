@@ -49,14 +49,8 @@ jobs:
       - name: Assert plugin is listed
         run: claude plugin list | grep -F "${{ steps.id.outputs.plugin }}"
 
-      - name: Validate marketplace (fail on any error)
-        run: |
-          out=$(claude plugin validate ./ 2>&1)
-          echo "$out"
-          if echo "$out" | grep -qiE 'error'; then
-            echo "ERROR: validate output reported an error"
-            exit 1
-          fi
+      - name: Validate marketplace (fails non-zero on real errors)
+        run: claude plugin validate ./
 
       - name: Cleanup
         if: always()
