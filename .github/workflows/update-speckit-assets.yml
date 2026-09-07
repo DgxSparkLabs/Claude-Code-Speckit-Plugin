@@ -115,15 +115,10 @@ jobs:
           rm -rf "$WORK_DIR"
           echo "✅  assets/bash updated"
 
-      # ── Sync bundled plugin skills from assets ────────────────────
-      - name: Sync bundled skills
+      # ── Rebuild bundled plugin skills from canonical sources ───────────
+      - name: Rebuild bundled skills
         if: steps.check.outputs.needs_update == 'true'
-        run: |
-          set -euo pipefail
-          rm -rf skills/speckit-*
-          mkdir -p skills
-          cp -R assets/bash/.claude/skills/speckit-* skills/
-          echo "Synced skills/speckit-* from assets/bash/.claude/skills/"
+        run: uv run scripts/build_skills.py
 
       # ── Update plugin.json version ────────────────────────────────
       - name: Update plugin.json version
@@ -160,7 +155,7 @@ jobs:
 
             Changes:
             - Regenerated `assets/bash/` from spec-kit ${{ steps.latest.outputs.version }}
-            - Synced `skills/speckit-*` from `assets/bash/.claude/skills/`
+            - Rebuilt `skills/` wholesale via `scripts/build_skills.py` from `assets/skills/init` + `assets/bash/.claude/skills/`
             - Updated `.claude-plugin/plugin.json` version to `${{ steps.latest.outputs.version }}`
             - Regenerated `README.md` via `scripts/generate_readme.py`
           labels: dependencies,automated
