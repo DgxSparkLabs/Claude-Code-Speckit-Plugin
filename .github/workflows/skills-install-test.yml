@@ -87,6 +87,7 @@ jobs:
       - name: Layout detection and --skills/--no-skills overrides
         run: |
           set -euo pipefail
+          shopt -s nullglob
 
           expected_count=0
           for d in assets/bash/.claude/skills/speckit-*/; do
