@@ -132,6 +132,15 @@ jobs:
         if: steps.check.outputs.needs_update == 'true'
         run: uv run scripts/generate_readme.py
 
+      # ── Verify the regenerated plugin still works ─────────────────
+      # Runs the same compat check as compat-test.yml against the freshly
+      # regenerated assets. GITHUB_TOKEN-authored PRs do not trigger separate
+      # check runs, so this in-job gate is what actually verifies an asset bump
+      # before it can auto-merge. A failure here fails the job: no PR is opened.
+      - name: Plugin compat check
+        if: steps.check.outputs.needs_update == 'true'
+        uses: ./.github/actions/plugin-compat
+
       # ── Create Pull Request ───────────────────────────────────────
       - name: Create Pull Request
         id: cpr
@@ -158,10 +167,11 @@ jobs:
           delete-branch: true
 
       # ── Enable auto-merge ─────────────────────────────────────────
-      # `--auto` waits for required checks when the PR was opened with a PAT
-      # (so compat-test.yml runs); with GITHUB_TOKEN no checks fire and GitHub
-      # rejects `--auto` on an already-clean PR, so fall back to a direct merge.
-      # Either path refuses to merge a PR that has conflicts.
+      # The in-job "Plugin compat check" above already verified this asset set,
+      # so merging a clean (conflict-free) PR is safe. `--auto` is used when a
+      # PAT opened the PR and required checks apply; otherwise GitHub rejects
+      # `--auto` on an already-clean PR, so fall back to a direct merge. Neither
+      # path merges a PR that has conflicts.
       - name: Enable auto-merge
         if: steps.check.outputs.needs_update == 'true' && steps.cpr.outputs.pull-request-number
         env:
