@@ -1,7 +1,7 @@
 {
   "name": "speckit",
   "version": "1.0.5",
-  "description": "Specification-driven development workflow for Claude Code. Provides skills for feature specification, planning, task generation, implementation, and analysis.",
+  "description": "Provides an `init` skill that installs and runs GitHub Spec Kit (spec-driven development) via the `specify` CLI.",
   "author": {
     "name": "DgxSparkLabs"
   },

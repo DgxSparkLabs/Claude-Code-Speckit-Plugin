@@ -1,7 +1,7 @@
 ---
 name: "init"
-description: "Initialize a new project with the Spec Kit workflow infrastructure. Always copies .specify/. Copies speckit-* skills into .claude/skills/ only in standalone mode, detected by absence of .claude-plugin/plugin.json two levels above this skill; --skills/--no-skills override. User-invocable only — run /speckit:init; do not auto-invoke."
-argument-hint: "[--force] [--skills|--no-skills]"
+description: "Initialize a project with the real Spec Kit CLI via uv. Installs specify-cli from PyPI, runs specify init, then enables default extensions. Arguments: [<project-name>|--here] [--force]. User-invocable only — run /speckit:init; do not auto-invoke."
+argument-hint: "[<project-name>|--here] [--force]"
 disable-model-invocation: true
 ---
 
@@ -13,76 +13,124 @@ $ARGUMENTS
 
 ## Goal
 
-Bootstrap the current project with Spec Kit — the no-Python equivalent of `specify init`. Copy the plugin's bundled `.specify/` into the project root. Copy `.claude/skills/speckit-*/` only when running standalone. Leave any user-authored files under `.claude/` untouched.
+Bootstrap a project by installing and running the real upstream `specify` CLI (PyPI package `specify-cli`) through `uv`. This is not a bundled substitute: `uv` is required, the CLI is required, and a system `python3` is not (uv provisions the interpreter). `git` is optional and only needed for Spec Kit's own git features.
 
-Do not implement this by hand. Run the bundled bootstrap script, then report its output and the next-step workflow below.
-
-Native Windows uses Git Bash or WSL for the bundled `.sh` scripts.
+Do not implement init by copying files by hand. Install the CLI, run `specify init`, enable extensions, then report the CLI output and the workflow below.
 
 ## When to run
 
-Only when the user invokes `/speckit:init` (or `/speckit:init` with `--force`, `--skills`, and/or `--no-skills`). Do not run this skill because a project "looks uninitialized".
+Only when the user invokes `/speckit:init` (optionally with a project name, `--here`, and/or `--force`). Do not run this skill because a project "looks uninitialized".
 
 ## Execution
 
 Working directory **must** be the user's project root, not this skill directory.
 
-1. Parse `$ARGUMENTS`. Supported flags are `--force`, `--skills`, and `--no-skills`. Ignore an empty argument list. Reject any other argument and stop.
-2. Resolve `<skill-dir>`: use `${CLAUDE_SKILL_DIR}` when it is an existing directory, otherwise the directory that contains this `SKILL.md`.
-3. Run the bootstrap script, forwarding those flags as the user passed them:
+Resolve `<skill-dir>`: use `${CLAUDE_SKILL_DIR}` when it is an existing directory, otherwise the directory that contains this `SKILL.md`.
+
+### 1. Ensure `uv` is installed
+
+Run `uv --version`. If `uv` is missing, tell the user how to install it, then **stop** (do not proceed without `uv`):
+
+- macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Native Windows: `powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"` or `winget install astral-sh.uv`
+
+Ask them to restart the shell so `uv` is on `PATH`, then rerun `/speckit:init`.
+
+### 2. Install or refresh the CLI
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/init-speckit.sh" $ARGUMENTS
+uv tool install specify-cli
 ```
 
-If `${CLAUDE_SKILL_DIR}` was not substituted, replace it with `<skill-dir>`.
+This installs the latest stable `specify-cli` from PyPI (unpinned). To refresh an existing install, use `uv tool install specify-cli --force`.
 
-### What the script does
+Invoke the CLI as `specify`. If the shell cannot find it after install, use `uv tool run specify` with the same arguments (uv's tool bin may not be on `PATH` yet).
 
-- **Refuse** if `.specify/` already exists in the project root, unless `--force` was passed (exit `2`). Tell the user to rerun `/speckit:init --force`. **Stop. Do not copy anything.**
-- **Asset root**, first match:
-  1. Plugin / repo layout: `<skill-dir>/../../assets/bash`
-  2. `$CLAUDE_PLUGIN_ROOT/assets/bash` when that environment variable is set
-  3. Standalone install (for example via `npx skills add`): shallow-clone this plugin repository and use its `assets/bash`
-- **Always copy** `.specify/` (plugin-owned; replaced entirely).
-- **Skills copy is dual-mode:**
-  - Default: plugin mode if `<skill-dir>/../../.claude-plugin/plugin.json` exists (skip the skill copy; the installed plugin already provides them); otherwise standalone (under `.claude/`, remove only `.claude/skills/speckit-*/`, then copy the bundled `speckit-*` skills). Preserve every other file the user already has in `.claude/`.
-  - `--skills` forces the skill copy; `--no-skills` forces skipping it. These override the detected mode.
-  - Do not use `$CLAUDE_PLUGIN_ROOT` to decide the mode; that variable is only an asset-root candidate.
-- `chmod +x` on `.specify/**/*.sh`.
+### 3. Run `specify init`
 
-### Exit codes
+Parse `$ARGUMENTS` for a project name, `--here`, and `--force`. Ignore an empty argument list (treat as init in the current directory). Other user wording may still inform flags below; do not require a rigid flag-only argv.
 
-| Code | Meaning | What you do |
-| --- | --- | --- |
-| `0` | Initialized | Show the script stdout, then the workflow below |
-| `2` | `.specify/` exists and `--force` was not passed | Show the script message; **stop** |
-| `1` | Error | Show stderr; **stop** |
+Choose flags:
 
-Do not invent extra copy steps, do not delete `.claude/` wholesale, and do not skip the script.
+| Flag | When |
+| --- | --- |
+| `--integration claude` | Always (this is a Claude Code skill). |
+| `--script sh` | macOS, Linux, WSL, Git Bash. |
+| `--script ps` | Native Windows (PowerShell). No bash required. |
+| `<project-name>` | User asked for a new directory of that name. |
+| `--here` (or `.`) | Init the current directory. Default when no project name is given. |
+| `--non-interactive --ignore-agent-tools` | Always in this agent/CI harness (no picker, no hang). |
+| `--force` | User passed `--force`, **or** the target already contains `.specify/`, **or** the target directory is not empty. |
+
+Example, current directory on a Unix-like shell:
+
+```bash
+specify init --here --integration claude --script sh --non-interactive --ignore-agent-tools
+```
+
+Example, new project on native Windows:
+
+```bash
+specify init my-project --integration claude --script ps --non-interactive --ignore-agent-tools
+```
+
+Add `--force` when required (see below). Show the CLI's stdout/stderr. If it fails, **stop**.
+
+### Existing directory / `.specify/`
+
+There is no wrapper script and no custom exit-code table. `specify init` itself:
+
+- With a `<project-name>`, creates that directory (and fails if it cannot).
+- With `--here` or `.`, initializes the current directory.
+- If the current directory is **not empty** and `--non-interactive` is set, the CLI exits with an error telling you to re-run with `--force` to merge into it. A directory that already contains `.specify/` is not empty, so this applies.
+- `--force` skips that confirmation and merges/overwrites into the existing directory.
+
+Pass `--force` on the first `specify init` when the target already contains `.specify/` or is otherwise non-empty. Do not wait for that error, and do not ask the user to rerun.
+
+### 4. Enable default extensions
+
+After a successful init, enable the default Spec Kit extensions unless the user opts out.
+
+Source of truth for the default list: `<skill-dir>/extensions.txt` (sibling of this file; one name/path/URL per line; blank lines and `#` comments ignored). Read it from `<skill-dir>/extensions.txt`; it is the only source. If that file is somehow missing, proceed with no extensions and warn the user. Do not hardcode extension names.
+
+**Optionally prompt** the user to add or remove entries before applying. If they reply with a modified list, use that. If they decline extensions entirely, skip this step. If they do not answer and you should not block, apply the defaults.
+
+From the initialized project directory (the new `<project-name>` dir if one was created, otherwise the current dir), run once per name:
+
+```bash
+specify extension add <name>
+```
+
+(`specify extension add` takes a single `{extension}` argument; do not pass several names in one invocation.)
+
+### 5. Report
+
+Show the CLI output. Then give the post-init guidance below.
 
 ## After a successful init
 
-Restart the session so newly available skills load (`/reload-plugins`, or exit and re-enter).
+`specify init --integration claude` writes **project** skills under `.claude/skills/` in the initialized project (for example `.claude/skills/speckit-specify`). They are invoked as `/speckit-<name>` (for example `/speckit-specify`). They are **not** plugin-namespaced `/speckit:speckit-<name>` commands.
 
-Then follow the Spec Kit workflow.
+Restart the session (or start a new one in the initialized project) so those project skills load. Do **not** run `/reload-plugins` for this — these are project skills, not plugin components.
 
-When this plugin is installed, skills are namespaced `/speckit:speckit-<name>` (for example `/speckit:speckit-specify`). In standalone mode (project skills under `.claude/skills/`), the form is `/speckit-<name>`.
+Then follow the Spec Kit workflow, in order:
 
-1. **Constitution** — `/speckit:speckit-constitution` / `/speckit-constitution` — project principles and development guidelines. One-time per project.
-2. **Specify** — `/speckit:speckit-specify <what to build>` / `/speckit-specify <what to build>` — the *what* and *why*, not the tech stack.
-3. **Clarify** — `/speckit:speckit-clarify` / `/speckit-clarify` — recommended before planning; tightens underspecified areas of the spec.
-4. **Plan** — `/speckit:speckit-plan` / `/speckit-plan` — technical implementation plan and stack choices.
-5. **Tasks** — `/speckit:speckit-tasks` / `/speckit-tasks` — dependency-ordered task list from the plan.
-6. **Analyze** — `/speckit:speckit-analyze` / `/speckit-analyze` — cross-artifact consistency and coverage, after tasks and before implement.
-7. **Implement** — `/speckit:speckit-implement` / `/speckit-implement` — execute the tasks.
-8. **Checklist** (optional) — `/speckit:speckit-checklist` / `/speckit-checklist` — quality checklists for the spec ("unit tests for English").
-9. **Converge** — `/speckit:speckit-converge` / `/speckit-converge` — assess the codebase against spec, plan, and tasks; append remaining work. Repeat implement → converge until it reports **Converged**.
+1. **Constitution** — `/speckit-constitution` — project principles and development guidelines. One-time per project.
+2. **Specify** — `/speckit-specify <what to build>` — the *what* and *why*, not the tech stack.
+3. **Clarify** — `/speckit-clarify` — recommended before planning; tightens underspecified areas of the spec.
+4. **Plan** — `/speckit-plan` — technical implementation plan and stack choices.
+5. **Tasks** — `/speckit-tasks` — dependency-ordered task list from the plan.
+6. **Analyze** — `/speckit-analyze` — cross-artifact consistency and coverage, after tasks and before implement.
+7. **Implement** — `/speckit-implement` — execute the tasks.
+8. **Checklist** (optional) — `/speckit-checklist` — quality checklists for the spec ("unit tests for English").
+9. **Converge** — `/speckit-converge` — assess the codebase against spec, plan, and tasks; append remaining work. Repeat implement → converge until it reports **Converged**.
 
-Related: `/speckit:speckit-taskstoissues` / `/speckit-taskstoissues` converts the task list into GitHub issues.
+Related: `/speckit-taskstoissues` converts the task list into GitHub issues.
 
-This plugin also copies the bundled Spec Kit extensions into `.specify/`. They are optional; the core workflow above does not require enabling extra extensions.
+If you initialized a new directory `<project-name>`, run those commands from that project (its `.claude/skills/`).
 
-## Compatibility
+## Requirements
 
-Projects initialized this way stay compatible with the upstream `specify` CLI if you later install it. This skill does not require Python or `specify`.
+- **Required:** `uv`, then `specify-cli` from PyPI via `uv tool install specify-cli`.
+- **Not required:** a system `python3` (uv provisions it); `git` (only Spec Kit's git features need it).
+- **Windows:** use `--script ps`; bash/Git Bash/WSL is not required.

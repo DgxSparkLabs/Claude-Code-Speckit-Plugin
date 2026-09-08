@@ -1,0 +1,17 @@
+# Default Spec Kit extensions for this plugin.
+#
+# One entry per line: a value accepted by the `specify` CLI (bundled
+# extension name, local path, or URL). Blank lines and # comments are ignored.
+#
+# Two consumers read this file:
+#   1. .github/workflows/update-speckit-assets.yml — regenerates the snapshot
+#      under assets/bash/ with `specify init --extension <entry>`.
+#   2. The init skill (SKILL.md, next to this file) — at a user's project-init
+#      time, enables the same set with `specify extension add <entry>`.
+#
+# It lives beside SKILL.md because scripts/build_skills.py copies the whole
+# assets/skills/init/ tree into the shipped skill, so the wrapper can read it
+# wherever the skill is installed. Keep the inline list in SKILL.md in sync.
+
+git
+assess
