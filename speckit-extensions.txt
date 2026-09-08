@@ -3,3 +3,4 @@
 # (bundled name, local path, or URL). Blank lines and # comments are ignored.
 
 git
+assess

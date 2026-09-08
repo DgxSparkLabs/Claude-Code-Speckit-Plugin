@@ -130,13 +130,18 @@ Neither route touches the `.specify/` tree or the specs already generated in you
 
 ## Available Skills
 
-The plugin ships 16 skills: `init`, which bootstraps a project, plus 15 workflow skills.
+The plugin ships 21 skills: `init`, which bootstraps a project, plus 20 workflow skills.
 
 ### Core Workflow
 
 | Skill | Command | Description |
 |---|---|---|
 | init | `/speckit:init` | Initialize a new project with the Spec Kit workflow infrastructure. Always copies .specify/. Copies speckit-* skills into .claude/skills/ only in standalone mode, detected by absence of .claude-plugin/plugin.json two levels above this skill; --skills/--no-skills override. User-invocable only — run /speckit:init; do not auto-invoke. |
+| speckit-assess-decide | `/speckit:speckit-assess-decide` | Apply a go / needs-clarification / kill gate and hand survivors off into Spec-Driven Development |
+| speckit-assess-define | `/speckit:speckit-assess-define` | Define the problem: who is affected, what hurts, goals, non-goals, and success metrics |
+| speckit-assess-intake | `/speckit:speckit-assess-intake` | Capture and normalize a raw idea (text, URL, ticket, or codebase pointer) into an intake note |
+| speckit-assess-research | `/speckit:speckit-assess-research` | Gather evidence — users, market, prior art, and data — to support or challenge the idea |
+| speckit-assess-shape | `/speckit:speckit-assess-shape` | Shape a concept: solution options, scope, appetite, and trade-offs (no implementation design) |
 | speckit-clarify | `/speckit:speckit-clarify` | Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec. |
 | speckit-constitution | `/speckit:speckit-constitution` | Create or update the project constitution from interactive or provided principle inputs. |
 | speckit-converge | `/speckit:speckit-converge` | Assess the current codebase against the feature's spec, plan, and tasks, then append any remaining unbuilt work as new tasks to tasks.md so implement can complete it. |
