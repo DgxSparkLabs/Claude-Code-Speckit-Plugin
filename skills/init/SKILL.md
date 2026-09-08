@@ -32,7 +32,7 @@ Resolve `<skill-dir>`: use `${CLAUDE_SKILL_DIR}` when it is an existing director
 Run `uv --version`. If `uv` is missing, tell the user how to install it, then **stop** (do not proceed without `uv`):
 
 - macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Native Windows: `powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"` or `winget install astral-sh.uv`
+- Native Windows: `winget install astral-sh.uv`
 
 Ask them to restart the shell so `uv` is on `PATH`, then rerun `/speckit:init`.
 
@@ -55,23 +55,16 @@ Choose flags:
 | Flag | When |
 | --- | --- |
 | `--integration claude` | Always (this is a Claude Code skill). |
-| `--script sh` | macOS, Linux, WSL, Git Bash. |
-| `--script ps` | Native Windows (PowerShell). No bash required. |
+| `--script sh` | Always (all platforms, including native Windows). |
 | `<project-name>` | User asked for a new directory of that name. |
 | `--here` (or `.`) | Init the current directory. Default when no project name is given. |
 | `--non-interactive --ignore-agent-tools` | Always in this agent/CI harness (no picker, no hang). |
 | `--force` | User passed `--force`, **or** the target already contains `.specify/`, **or** the target directory is not empty. |
 
-Example, current directory on a Unix-like shell:
+Example:
 
 ```bash
 specify init --here --integration claude --script sh --non-interactive --ignore-agent-tools
-```
-
-Example, new project on native Windows:
-
-```bash
-specify init my-project --integration claude --script ps --non-interactive --ignore-agent-tools
 ```
 
 Add `--force` when required (see below). Show the CLI's stdout/stderr. If it fails, **stop**.
@@ -133,4 +126,4 @@ If you initialized a new directory `<project-name>`, run those commands from tha
 
 - **Required:** `uv`, then `specify-cli` from PyPI via `uv tool install specify-cli`.
 - **Not required:** a system `python3` (uv provisions it); `git` (only Spec Kit's git features need it).
-- **Windows:** use `--script ps`; bash/Git Bash/WSL is not required.
+- **Windows:** the skill always uses `--script sh`; on native Windows you need Git Bash or WSL to run the generated `.sh` scripts.

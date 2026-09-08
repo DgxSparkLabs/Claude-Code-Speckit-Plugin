@@ -24,7 +24,7 @@ Installing the plugin needs either the Claude Code CLI or the `skills` CLI from 
 
 Running `/speckit:init` needs **`uv`** (hard requirement). The skill then installs `specify-cli` from PyPI. A system `python3` is not required — uv provisions the interpreter. `git` is optional and only needed for Spec Kit's own git features.
 
-On native Windows, `specify init` uses `--script ps` (PowerShell). Bash, Git Bash, and WSL are not required. On macOS, Linux, WSL, and Git Bash it uses `--script sh`.
+The skill always uses `--script sh` on all platforms, including native Windows. Native Windows needs Git Bash or WSL to run the generated `.sh` scripts.
 
 ## Installation
 
@@ -99,7 +99,7 @@ Neither route touches the `.specify/` tree or the specs already generated in you
 
 ## Quick Start
 
-1. Initialize the project. The `init` skill checks for `uv`, installs `specify-cli` from PyPI, runs `specify init --integration claude` (with `--script sh` or `--script ps`, plus `--non-interactive --ignore-agent-tools`), then `specify extension add` for each default extension (`git`, `assess`):
+1. Initialize the project. The `init` skill checks for `uv`, installs `specify-cli` from PyPI, runs `specify init --integration claude` (with `--script sh`, plus `--non-interactive --ignore-agent-tools`), then `specify extension add` for each default extension (`git`, `assess`):
    ```
    /speckit:init
    ```
@@ -211,7 +211,7 @@ When a user runs `/speckit:init`, the skill:
 
 1. Ensures `uv` is installed (and tells the user how to install it if not).
 2. Runs `uv tool install specify-cli` (PyPI, latest stable, unpinned).
-3. Runs `specify init` with `--integration claude`, `--script sh` or `--script ps`, `--non-interactive --ignore-agent-tools`, a project name or `--here`, and `--force` when the target is non-empty or already contains `.specify/`.
+3. Runs `specify init` with `--integration claude`, `--script sh`, `--non-interactive --ignore-agent-tools`, a project name or `--here`, and `--force` when the target is non-empty or already contains `.specify/`.
 4. Optionally prompts to add or remove default extensions, then runs `specify extension add <name>` for each (defaults: `git`, `assess`, from `assets/skills/init/extensions.txt`).
 
 After init, Spec Kit workflow commands live in the project as `/speckit-<name>` under `.claude/skills/`.
@@ -235,7 +235,7 @@ If `uv` is missing, install it from [astral.sh/uv](https://docs.astral.sh/uv/get
 
 Skills that do not appear, or a `Skills (0)` inventory, mean the agent loaded none of the plugin's components. This plugin should list one skill, `init`. Confirm with `claude plugin details speckit@claude-code-speckit-plugin` for the plugin route, or with `npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --list` for the Agent Skills route. After init, workflow commands are project skills (`/speckit-specify`, …) in that project's `.claude/skills/`; restart the session rather than `/reload-plugins`.
 
-On native Windows use `--script ps`. Bash is not required.
+On native Windows the skill uses `--script sh`; Git Bash or WSL is needed to run the generated `.sh` scripts.
 
 ## License
 
