@@ -32,7 +32,7 @@ Resolve `<skill-dir>`: use `${CLAUDE_SKILL_DIR}` when it is an existing director
 Run `uv --version`. If `uv` is missing, tell the user how to install it, then **stop** (do not proceed without `uv`):
 
 - macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Native Windows: `winget install astral-sh.uv`
+- Native Windows: `powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"` or `winget install astral-sh.uv`
 
 Ask them to restart the shell so `uv` is on `PATH`, then rerun `/speckit:init`.
 
