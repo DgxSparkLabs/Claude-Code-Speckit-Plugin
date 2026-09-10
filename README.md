@@ -52,29 +52,6 @@ This repository follows the [Agent Skills](https://agentskills.io) layout (`skil
 ```bash
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --list
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill bundles
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill doctor
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill extensions
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill init
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill integrations
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill presets
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill upgrade
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill workflow-authoring
-npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill workflows
-```
-
-Direct skill path:
-
-```bash
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/bundles
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/doctor
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/extensions
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/init
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/integrations
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/presets
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/upgrade
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/workflow-authoring
-npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/workflows
 ```
 
 ## Updating

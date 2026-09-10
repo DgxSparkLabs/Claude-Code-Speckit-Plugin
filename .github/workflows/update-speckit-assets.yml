@@ -60,85 +60,22 @@ jobs:
           uv tool install specify-cli --force
           echo "Installed specify-cli:"
           specify version
-          RAW="$(specify --version)"
-          VERSION="${RAW##* }"
-          if [ -z "$VERSION" ]; then
-            echo "::error::Could not parse version from: $RAW"
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Installed CLI version: $VERSION"
+          uv run scripts/update_assets.py parse-version
 
       # ── Compare versions / decide whether to regenerate ───────────
       - name: Check if update is needed
         id: check
-        run: |
-          CLI="${{ steps.cli.outputs.version }}"
-          CURRENT="${{ steps.current.outputs.version }}"
-          FORCE="${{ github.event.inputs.force_regenerate }}"
-          EVENT="${{ github.event_name }}"
-
-          NEEDS_UPDATE=false
-          REGEN=false
-
-          if [[ "$CLI" =~ (dev|alpha|beta|rc) ]]; then
-            echo "Skipping pre-release CLI version: $CLI"
-          elif [ "$CLI" = "$CURRENT" ]; then
-            echo "Version $CURRENT is already up to date."
-          else
-            echo "Update available: $CURRENT → $CLI"
-            NEEDS_UPDATE=true
-            REGEN=true
-          fi
-
-          if [ "$FORCE" = "true" ]; then
-            echo "force_regenerate=true; will regenerate."
-            REGEN=true
-          fi
-
-          if [ "$EVENT" = "push" ]; then
-            echo "extensions.txt changed on main; will regenerate."
-            REGEN=true
-          fi
-
-          echo "needs_update=$NEEDS_UPDATE" >> "$GITHUB_OUTPUT"
-          echo "regen=$REGEN" >> "$GITHUB_OUTPUT"
+        run: >
+          uv run scripts/update_assets.py decide
+          --cli "${{ steps.cli.outputs.version }}"
+          --current "${{ steps.current.outputs.version }}"
+          --force "${{ github.event.inputs.force_regenerate }}"
+          --event "${{ github.event_name }}"
 
       # ── Regenerate assets ─────────────────────────────────────────
       - name: Regenerate assets
         if: steps.check.outputs.regen == 'true'
-        run: |
-          INIT_FLAGS=(--integration claude --here --force --ignore-agent-tools --non-interactive)
-
-          EXT_FILE="assets/skills/init/extensions.txt"
-          if [ ! -f "$EXT_FILE" ]; then
-            echo "::error::Missing $EXT_FILE (default extension list for specify init --extension)."
-            exit 1
-          fi
-
-          EXT_FLAGS=()
-          while IFS= read -r line || [ -n "$line" ]; do
-            line="${line#"${line%%[![:space:]]*}"}"
-            line="${line%"${line##*[![:space:]]}"}"
-            [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
-            EXT_FLAGS+=(--extension "$line")
-          done < "$EXT_FILE"
-
-          TARGET_DIR="assets/bash"
-          echo "═══ Generating bash assets (--script sh) ═══"
-
-          WORK_DIR="$(mktemp -d)"
-
-          (cd "$WORK_DIR" && specify init . "${INIT_FLAGS[@]}" "${EXT_FLAGS[@]}" --script sh)
-
-          rm -rf "$TARGET_DIR"
-          mkdir -p "$TARGET_DIR"
-          cp -R "$WORK_DIR/.claude" "$TARGET_DIR/.claude"
-          cp -R "$WORK_DIR/.specify" "$TARGET_DIR/.specify"
-          find "$TARGET_DIR/.specify" -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
-
-          rm -rf "$WORK_DIR"
-          echo "✅  assets/bash updated"
+        run: uv run scripts/update_assets.py regenerate
 
       # ── Sync skills/init from assets/skills/init ──────────────────
       # skills/ ships only init. scripts/build_skills.py copies the
@@ -150,12 +87,7 @@ jobs:
       # ── Update plugin.json version ────────────────────────────────
       - name: Update plugin.json version
         if: steps.check.outputs.needs_update == 'true'
-        run: |
-          PLUGIN_JSON=".claude-plugin/plugin.json"
-          NEW_VERSION="${{ steps.cli.outputs.version }}"
-          jq --arg v "$NEW_VERSION" '.version = $v' "$PLUGIN_JSON" > "${PLUGIN_JSON}.tmp"
-          mv "${PLUGIN_JSON}.tmp" "$PLUGIN_JSON"
-          echo "Updated plugin.json version to $NEW_VERSION"
+        run: uv run scripts/update_assets.py bump-version --version "${{ steps.cli.outputs.version }}"
 
       # ── Regenerate README ─────────────────────────────────────────
       - name: Regenerate README

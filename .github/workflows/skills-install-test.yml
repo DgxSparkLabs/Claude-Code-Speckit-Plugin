@@ -39,7 +39,7 @@ jobs:
         run: uv run scripts/assert_extensions.py
 
       - name: Smoke-test skill enumerator and assertions
-        run: uv run tests/test_list_skills.py
+        run: uv run pytest
 
       - name: Enumerate installable skills
         run: |
@@ -92,69 +92,4 @@ jobs:
         run: uv tool install specify-cli
 
       - name: Run wrapper sequence and assert output
-        run: |
-          set -euo pipefail
-
-          EXT_FILE="assets/skills/init/extensions.txt"
-          if [ ! -f "$EXT_FILE" ]; then
-            echo "::error::Missing $EXT_FILE"
-            exit 1
-          fi
-
-          expected_count=0
-          expected_names=()
-          for d in assets/bash/.claude/skills/speckit-*/; do
-            [ -d "$d" ] || continue
-            expected_count=$((expected_count + 1))
-            expected_names+=("$(basename "$d")")
-          done
-          if [ "$expected_count" -lt 1 ]; then
-            echo "ERROR: no speckit-* skills under assets/bash/.claude/skills/" >&2
-            exit 1
-          fi
-
-          WORK="$(mktemp -d)"
-          (
-            cd "$WORK"
-            specify init . --integration claude --script sh --non-interactive --ignore-agent-tools --force
-            while IFS= read -r line || [ -n "$line" ]; do
-              line="${line#"${line%%[![:space:]]*}"}"
-              line="${line%"${line##*[![:space:]]}"}"
-              [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
-              specify extension add "$line"
-            done < "$GITHUB_WORKSPACE/$EXT_FILE"
-          )
-
-          if [ ! -d "$WORK/.specify" ]; then
-            echo "ERROR: wrapper sequence did not create .specify/" >&2
-            exit 1
-          fi
-
-          live_count=0
-          for d in "$WORK"/.claude/skills/speckit-*/; do
-            [ -d "$d" ] || continue
-            live_count=$((live_count + 1))
-          done
-          if [ ! -d "$WORK/.claude/skills" ] || [ "$live_count" -lt 1 ]; then
-            echo "ERROR: .claude/skills/ is empty (expected at least one speckit-* skill)" >&2
-            ls -la "$WORK/.claude/skills" >&2 || true
-            exit 1
-          fi
-
-          missing_names=()
-          for name in "${expected_names[@]}"; do
-            if [ ! -f "$WORK/.claude/skills/$name/SKILL.md" ]; then
-              missing_names+=("$name")
-            fi
-          done
-          if [ "${#missing_names[@]}" -ne 0 ]; then
-            echo "::warning::snapshot names absent from live specify init: ${missing_names[*]}"
-            echo "=== $WORK/.claude/skills ===" >&2
-            ls -la "$WORK/.claude/skills" >&2 || true
-          fi
-          echo "ok: .specify/ present and $live_count speckit-* skills installed"
-
-          uv run scripts/assert_extensions.py \
-            --extensions-txt "$GITHUB_WORKSPACE/$EXT_FILE" \
-            --extensions-yml "$WORK/.specify/extensions.yml" \
-            --skills-dir "$WORK/.claude/skills"
+        run: uv run scripts/wrapper_smoke.py

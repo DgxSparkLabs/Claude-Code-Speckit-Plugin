@@ -250,13 +250,6 @@ def render() -> str:
     else:
         ships = f"The plugin ships {ships_noun}."
 
-    npx_skill_flags = "\n".join(
-        f"npx skills add {REPO} --skill {s['name']}" for s in plugin_skills
-    )
-    npx_direct_paths = "\n".join(
-        f"npx skills add https://github.com/{REPO}/tree/main/skills/{s['name']}"
-        for s in plugin_skills
-    )
     npx_remove_args = " ".join(s["name"] for s in plugin_skills)
 
     extensions = default_extensions()
@@ -331,13 +324,6 @@ This repository follows the [Agent Skills](https://agentskills.io) layout (`skil
 ```bash
 npx skills add {REPO}
 npx skills add {REPO} --list
-{npx_skill_flags}
-```
-
-Direct skill path:
-
-```bash
-{npx_direct_paths}
 ```
 
 ## Updating

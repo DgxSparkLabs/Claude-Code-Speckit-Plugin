@@ -1,3 +1,10 @@
 # Local Claude Code state written by `claude plugin ... --scope project`.
 # Root-anchored so bundled assets/**/.claude directories stay tracked.
 /.claude/
+
+# uv project virtualenv (created by `uv run`)
+/.venv/
+
+# Python / pytest caches
+__pycache__/
+.pytest_cache/
