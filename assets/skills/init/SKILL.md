@@ -80,6 +80,27 @@ There is no wrapper script and no custom exit-code table. `specify init` itself:
 
 Pass `--force` on the first `specify init` when the target already contains `.specify/` or is otherwise non-empty. Do not wait for that error, and do not ask the user to rerun.
 
+### Line-ending attributes (`.gitattributes`)
+
+After a successful init, ensure the initialized project's root `.gitattributes` pins script line endings. This skill always uses `--script sh`, so generated `.sh` files must stay LF even on Windows checkouts (`core.autocrlf=true` would otherwise re-CRLF them and break `#!/usr/bin/env bash`).
+
+The file must contain **exactly** this block (create `.gitattributes` if it does not exist; if it exists but lacks these rules, append the block):
+
+```gitattributes
+# Shell scripts must stay LF so they run under bash on Windows checkouts
+# (core.autocrlf=true would otherwise re-CRLF them and break `#!/usr/bin/env bash`).
+*.sh text eol=lf
+
+# PowerShell and Windows batch scripts stay CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+```
+
+If `.gitattributes` already has **conflicting** attributes for any of `*.sh`, `*.ps1`, `*.bat`, or `*.cmd` — for example an existing `*.sh text eol=crlf`, or a broad rule that would assign a different `eol`/`text` to them — **do not** overwrite or silently change it. **Stop** and raise it as a question: show the conflicting existing line(s) and the proposed rule, and ask how to proceed.
+
+Only create or append automatically when there is no conflict (the patterns are absent, or already match this block exactly — then this step is a no-op).
+
 ### 4. Enable default extensions
 
 After a successful init, enable the default Spec Kit extensions unless the user opts out.
