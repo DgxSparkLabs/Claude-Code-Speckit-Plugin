@@ -191,7 +191,6 @@ The plugin ships one skill, `init`. It is a thin wrapper around the real `specif
 | `preset` | Manage spec-kit presets |
 | `bundle` | Discover, install, and author Spec Kit bundles |
 | `workflow` | Manage and run automation workflows |
-| `╰──────────────────────────────────────────────────────────────────────────────────────────────────╯` |  |
 
 ## How This Plugin Is Generated
 
