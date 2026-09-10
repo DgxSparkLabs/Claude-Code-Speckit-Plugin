@@ -1,5 +1,5 @@
 name: speckit
-description: Provides `init` and `upgrade` skills to install, run, and upgrade GitHub Spec Kit (spec-driven development) via the `specify` CLI.
+description: Provides slash-command skills to install, run, upgrade, and manage GitHub Spec Kit (spec-driven development) via the `specify` CLI.
 system_requirements:
   - name: uv
     optional: false

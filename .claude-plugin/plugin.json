@@ -1,7 +1,7 @@
 {
   "name": "speckit",
   "version": "1.0.5",
-  "description": "Provides `init` and `upgrade` skills to install, run, and upgrade GitHub Spec Kit (spec-driven development) via the `specify` CLI.",
+  "description": "Provides slash-command skills to install, run, upgrade, and manage GitHub Spec Kit (spec-driven development) via the `specify` CLI.",
   "author": {
     "name": "DgxSparkLabs"
   },

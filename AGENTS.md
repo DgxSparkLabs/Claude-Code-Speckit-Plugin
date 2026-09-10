@@ -1,6 +1,6 @@
 # Agent notes — Claude-Code-Speckit-Plugin
 
-This repository is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that bundles [GitHub Spec Kit](https://github.com/github/spec-kit) under the [DgxSparkLabs](https://github.com/DgxSparkLabs) brand. It ships thin `init` and `upgrade` wrappers that install, run, and upgrade the real `specify` CLI via `uv` (`uv` is required).
+This repository is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that bundles [GitHub Spec Kit](https://github.com/github/spec-kit) under the [DgxSparkLabs](https://github.com/DgxSparkLabs) brand. It ships thin wrappers (`init`, `upgrade`, `doctor`, `extensions`, `presets`, `bundles`, `integrations`) that install, run, upgrade, and manage the real `specify` CLI via `uv` (`uv` is required).
 
 ## Generated files — do not hand-edit
 
@@ -22,6 +22,11 @@ Authored plugin skills live under `assets/skills/<name>/` and are copied into `s
 
 - `/speckit:init` is a thin wrapper: it installs `specify-cli` from PyPI via `uv` and runs `specify init --integration claude …`, then `specify extension add` for the default extensions in `assets/skills/init/extensions.txt`. There is no `init-speckit.sh` and no standalone/plugin skill-copy modes.
 - `/speckit:upgrade` upgrades the `specify` CLI (`specify self upgrade`, with a `uv tool install specify-cli --force` fallback) and refreshes an initialized project's Spec Kit files (`specify integration upgrade claude`, `specify extension update`).
+- `/speckit:doctor` is a read-only health check (`specify check`, `specify self check`, and `specify integration status` inside a project).
+- `/speckit:extensions` wraps `specify extension` (list/search/add/remove/update/info/enable/disable/set-priority). The community catalog is discovery-only.
+- `/speckit:presets` wraps `specify preset` (list/search/add/remove/info/enable/disable/set-priority/resolve). Presets outrank extensions on the resolution stack.
+- `/speckit:bundles` wraps `specify bundle` for discovering, installing, and maintaining role/team bundles (search/info/list/install/update/remove/validate).
+- `/speckit:integrations` wraps `specify integration` (list/status/install/upgrade/switch/use/uninstall/info/search). There is no `integration add`; this plugin's init uses `claude`.
 
 ## Compat CI
 

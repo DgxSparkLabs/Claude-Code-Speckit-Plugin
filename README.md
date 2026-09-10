@@ -9,7 +9,7 @@
 
 [![Compat Tests](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml) [![Update Spec Kit Assets](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml) ![specify-cli](https://img.shields.io/badge/specify--cli-v1.0.5-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
-A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that ships `init` and `upgrade` for [Spec Kit](https://github.com/github/spec-kit). `/speckit:init` requires [`uv`](https://docs.astral.sh/uv/) and installs `specify-cli` from PyPI (`uv tool install specify-cli`), then runs `specify init` and enables the default extensions. `/speckit:upgrade` updates the CLI and refreshes an initialized project's Spec Kit files.
+A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that ships `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, and `upgrade` for [Spec Kit](https://github.com/github/spec-kit). `/speckit:init` requires [`uv`](https://docs.astral.sh/uv/) and installs `specify-cli` from PyPI (`uv tool install specify-cli`), then runs `specify init` and enables the default extensions. `/speckit:upgrade` updates the CLI and refreshes an initialized project's Spec Kit files.
 
 This plugin is an independent port of the upstream Spec Kit project and is not affiliated with or endorsed by GitHub.
 
@@ -43,23 +43,33 @@ After installing, list the skills the plugin contributes:
 claude plugin details speckit@claude-code-speckit-plugin
 ```
 
-The command prints the plugin's component inventory. This plugin ships 2 skills: `init` and `upgrade`.
+The command prints the plugin's component inventory. This plugin ships 7 skills: `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, and `upgrade`.
 
 ### Agent Skills (`npx skills add`)
 
-This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). It ships 2 skills: `init` and `upgrade`. These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install:
+This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). It ships 7 skills: `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, and `upgrade`. These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install:
 
 ```bash
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --list
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill bundles
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill doctor
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill extensions
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill init
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill integrations
+npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill presets
 npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --skill upgrade
 ```
 
 Direct skill path:
 
 ```bash
+npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/bundles
+npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/doctor
+npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/extensions
 npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/init
+npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/integrations
+npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/presets
 npx skills add https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/tree/main/skills/upgrade
 ```
 
@@ -96,7 +106,7 @@ Remove the skills the `skills` CLI installed. Running `npx skills list` shows wh
 
 ```bash
 npx skills list
-npx skills remove init upgrade
+npx skills remove bundles doctor extensions init integrations presets upgrade
 ```
 
 Neither route touches the `.specify/` tree or the specs already generated in your project, so delete those yourself if you no longer want them.
@@ -134,11 +144,16 @@ Recommended in between: `/speckit-clarify` before plan, `/speckit-analyze` after
 
 ## Available Skills
 
-The plugin ships 2 skills: `init` and `upgrade`.
+The plugin ships 7 skills: `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, and `upgrade`.
 
 | Skill | Command | Description |
 |---|---|---|
+| bundles | `/speckit:bundles` | Discover, install, and maintain Spec Kit bundles (role/team setups that compose extensions, presets, and workflows) via specify bundle. Search, inspect, list, install, update, remove, or validate. Authoring (build/init) is out of scope. Arguments: [search|info|list|install|update|remove] [id]. User-invocable only — run /speckit:bundles; do not auto-invoke. |
+| doctor | `/speckit:doctor` | Read-only Spec Kit health check. Runs specify check (required tools), specify self check (is the installed CLI the latest release), and, inside an initialized project, specify integration status to report the default integration and any modified or missing managed files. Changes nothing. Arguments: [--json]. User-invocable only — run /speckit:doctor; do not auto-invoke. |
+| extensions | `/speckit:extensions` | Manage Spec Kit extensions in a project via specify extension. List, search, inspect, add, update, remove, enable, disable, or set priority. The community catalog is discovery-only: never auto-install from an unvetted URL. Arguments: [list|search|add|remove|update|info|enable|disable] [name]. User-invocable only — run /speckit:extensions; do not auto-invoke. |
 | init | `/speckit:init` | Initialize a project with the real Spec Kit CLI via uv. Installs specify-cli from PyPI, runs specify init, then enables default extensions. Arguments: [<project-name>|--here] [--force]. User-invocable only — run /speckit:init; do not auto-invoke. |
+| integrations | `/speckit:integrations` | Manage coding-agent integrations in a Spec Kit project via specify integration. List, status, install, upgrade, switch, use, uninstall, info, or search. There is no integration add (use install). This plugin's init uses claude. switch/uninstall/--force can remove or overwrite integration files. Arguments: [list|status|install|upgrade|switch|use|uninstall] [key]. User-invocable only — run /speckit:integrations; do not auto-invoke. |
+| presets | `/speckit:presets` | Manage Spec Kit presets (template/terminology/workflow overrides via the resolution stack) with specify preset. List, search, inspect, add, remove, enable, disable, set priority, or resolve which template wins. Presets outrank extensions; multiple can stack. Arguments: [list|search|add|remove|info|resolve] [id]. User-invocable only — run /speckit:presets; do not auto-invoke. |
 | upgrade | `/speckit:upgrade` | Upgrade Spec Kit: update the specify CLI and refresh an initialized project's Spec Kit files. Upgrades the CLI via specify self upgrade (uv tool install fallback), then runs specify integration upgrade and specify extension update. Arguments: [--dry-run] [--tag vX.Y.Z]. User-invocable only — run /speckit:upgrade; do not auto-invoke. |
 
 ### Project skills (after `/speckit:init`)
@@ -199,7 +214,7 @@ The plugin ships 2 skills: `init` and `upgrade`.
 
 ## How This Plugin Is Generated
 
-A snapshot of `specify init` output is kept under `assets/bash/` so reviews can diff upstream changes. The installable plugin ships 2 skills: `init` and `upgrade`; users get workflow skills from the live CLI at init time.
+A snapshot of `specify init` output is kept under `assets/bash/` so reviews can diff upstream changes. The installable plugin ships 7 skills: `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, and `upgrade`; users get workflow skills from the live CLI at init time.
 
 ### Generation Process
 
@@ -237,7 +252,7 @@ A [GitHub Actions workflow](/.github/workflows/update-speckit-assets.yml) runs d
 
 If `uv` is missing, install it from [astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/) and rerun `/speckit:init`. If `specify` is not on `PATH` after `uv tool install specify-cli`, invoke it as `uv tool run specify`.
 
-Skills that do not appear, or a `Skills (0)` inventory, mean the agent loaded none of the plugin's components. This plugin should list 2 skills: `init` and `upgrade`. Confirm with `claude plugin details speckit@claude-code-speckit-plugin` for the plugin route, or with `npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --list` for the Agent Skills route. After init, workflow commands are project skills (`/speckit-specify`, …) in that project's `.claude/skills/`; restart the session rather than `/reload-plugins`.
+Skills that do not appear, or a `Skills (0)` inventory, mean the agent loaded none of the plugin's components. This plugin should list 7 skills: `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, and `upgrade`. Confirm with `claude plugin details speckit@claude-code-speckit-plugin` for the plugin route, or with `npx skills add DgxSparkLabs/Claude-Code-Speckit-Plugin --list` for the Agent Skills route. After init, workflow commands are project skills (`/speckit-specify`, …) in that project's `.claude/skills/`; restart the session rather than `/reload-plugins`.
 
 On native Windows the skill uses `--script sh`; Git Bash or WSL is needed to run the generated `.sh` scripts.
 
