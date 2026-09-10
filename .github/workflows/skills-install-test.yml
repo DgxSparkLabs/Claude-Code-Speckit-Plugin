@@ -2,7 +2,7 @@
 # and that the init wrapper sequence (specify init + extension add) works.
 #
 # Job agent-skills: top-level skills/*/SKILL.md via the vercel-labs `npx skills`
-# CLI (the plugin ships only `init`), plus no-network snapshot guards.
+# CLI (the plugin ships the authored set under skills/), plus no-network snapshot guards.
 # Job wrapper-smoke: install specify-cli from PyPI and run the wrapper sequence.
 
 name: Skills Install Tests
@@ -32,7 +32,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Assert skills/ is exactly init and matches assets/skills/init
+      - name: Assert skills/ matches the authored skill set in assets/skills/*
         run: uv run scripts/assert_bundled_skills.py
 
       - name: Assert snapshot extensions match extensions.txt

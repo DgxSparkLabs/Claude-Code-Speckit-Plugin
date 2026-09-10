@@ -3,16 +3,16 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Sync `skills/init` from `assets/skills/init`.
+"""Sync all authored skills from `assets/skills/*` into `skills/`.
 
 `skills/` is a pure build artifact: it is deleted wholesale and recreated on
 every run, so any dangling directory left behind by an earlier layout is
 destroyed rather than preserved.
 
 Canonical source:
-  * `assets/skills/init` -- the hand-authored init skill
+  * `assets/skills/<name>` -- each hand-authored plugin skill
 
-The rebuilt copy is what Claude Code discovers as the plugin's init skill and
+The rebuilt copies are what Claude Code discovers as the plugin's skills and
 what the vercel-labs `skills` CLI installs, so `skills/` stays git-committed.
 "Build artifact" means deterministically regeneratable, not untracked.
 
@@ -20,9 +20,9 @@ Usage:
     uv run scripts/build_skills.py
     uv run scripts/build_skills.py --root /path/to/checkout
 
-Exits non-zero when `assets/skills/init` is missing or empty, or when the
-rebuilt tree would not contain `skills/init`, so a CI step can never silently
-produce an empty `skills/`.
+Exits non-zero when `assets/skills/` has no skill directories, when any
+authored skill is empty, or when the rebuilt `skills/` would be empty, so a
+CI step can never silently produce an empty `skills/`.
 """
 
 from __future__ import annotations
@@ -34,9 +34,8 @@ import stat
 import sys
 from pathlib import Path
 
-INIT_SOURCE_REL = Path("assets") / "skills" / "init"
+SKILLS_SOURCE_REL = Path("assets") / "skills"
 BUNDLE_REL = Path("skills")
-INIT_NAME = "init"
 
 
 def make_scripts_executable(root: Path) -> int:
@@ -75,6 +74,13 @@ def trees_byte_identical(src: Path, dst: Path) -> bool:
     )
 
 
+def authored_skill_dirs(root: Path) -> list[Path]:
+    source = root / SKILLS_SOURCE_REL
+    if not source.is_dir():
+        return []
+    return sorted(p for p in source.iterdir() if p.is_dir())
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -86,50 +92,58 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = args.root.resolve()
 
-    init_source = root / INIT_SOURCE_REL
     bundle = root / BUNDLE_REL
+    authored = authored_skill_dirs(root)
 
-    if not init_source.is_dir():
+    if not authored:
         print(
-            f"error: cannot rebuild skills/: missing authored init source: "
-            f"{INIT_SOURCE_REL.as_posix()}",
+            f"error: cannot rebuild skills/: no authored skill directories under "
+            f"{SKILLS_SOURCE_REL.as_posix()}/",
             file=sys.stderr,
         )
         return 1
-    if not rel_files(init_source):
-        print(
-            f"error: {INIT_SOURCE_REL.as_posix()} is empty; "
-            "refusing to rebuild skills/ into an empty tree",
-            file=sys.stderr,
-        )
-        return 1
+    for src in authored:
+        if not rel_files(src):
+            print(
+                f"error: {SKILLS_SOURCE_REL.as_posix()}/{src.name} is empty; "
+                "refusing to rebuild skills/ into an empty tree",
+                file=sys.stderr,
+            )
+            return 1
 
-    init_bundle = bundle / INIT_NAME
-    if init_bundle.is_dir() and not trees_byte_identical(init_source, init_bundle):
-        print(
-            "warning: skills/init has local edits that will be discarded; "
-            "edit the source assets/skills/init/ and rerun scripts/build_skills.py",
-            file=sys.stderr,
-        )
+    if bundle.is_dir():
+        for src in authored:
+            dst = bundle / src.name
+            if dst.is_dir() and not trees_byte_identical(src, dst):
+                print(
+                    f"warning: skills/{src.name} has local edits that will be discarded; "
+                    f"edit the source assets/skills/{src.name}/ and rerun "
+                    "scripts/build_skills.py",
+                    file=sys.stderr,
+                )
 
     # Wholesale wipe: this is what destroys dangling entries.
     shutil.rmtree(bundle, ignore_errors=True)
     bundle.mkdir(parents=True)
 
-    shutil.copytree(init_source, bundle / INIT_NAME)
+    for src in authored:
+        shutil.copytree(src, bundle / src.name)
 
-    rebuilt = bundle / INIT_NAME
-    if not rebuilt.is_dir():
-        print("error: rebuilt skills/init is absent", file=sys.stderr)
+    rebuilt = [p for p in sorted(bundle.iterdir()) if p.is_dir()]
+    if not rebuilt:
+        print("error: rebuilt skills/ is empty", file=sys.stderr)
         return 1
-    if not rel_files(rebuilt):
-        print("error: rebuilt skills/init is empty", file=sys.stderr)
-        return 1
+    for dst in rebuilt:
+        if not rel_files(dst):
+            print(f"error: rebuilt skills/{dst.name} is empty", file=sys.stderr)
+            return 1
 
     scripts = make_scripts_executable(bundle)
+    names = ", ".join(p.name for p in rebuilt)
 
     print(
-        f"Synced {BUNDLE_REL.as_posix()}/{INIT_NAME} from {INIT_SOURCE_REL.as_posix()}; "
+        f"Synced all authored skills from {SKILLS_SOURCE_REL.as_posix()}/* "
+        f"into {BUNDLE_REL.as_posix()}/ ({names}); "
         f"{scripts} *.sh marked executable"
     )
     return 0

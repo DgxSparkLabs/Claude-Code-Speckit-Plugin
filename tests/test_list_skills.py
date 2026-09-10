@@ -48,20 +48,35 @@ def write_skill(root: Path, directory: str, frontmatter: str | None) -> None:
     (skill_dir / "SKILL.md").write_text(body, encoding="utf-8")
 
 
-def test_repo_enumerates_init() -> None:
+def test_repo_enumerates_authored_skills() -> None:
+    authored = sorted(
+        p.name
+        for p in (REPO / "assets" / "skills").iterdir()
+        if p.is_dir()
+    )
+    expect(
+        set(authored) >= {"init", "upgrade"},
+        f"expected authored skills to include init and upgrade, got {authored}",
+    )
+
     proc = run(LIST_SKILLS)
     expect(proc.returncode == 0, f"list_skills failed: {proc.stderr}")
     names = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
-    expect("init" in names, f"expected 'init' in {names}")
+    expect(names == authored, f"list names {names} != authored {authored}")
     expect(names == sorted(names), f"names not sorted: {names}")
 
     proc_json = run(LIST_SKILLS, "--json")
     expect(proc_json.returncode == 0, f"list_skills --json failed: {proc_json.stderr}")
     payload = json.loads(proc_json.stdout)
     expect(isinstance(payload, list) and payload, f"bad json: {proc_json.stdout!r}")
-    expect(payload[0]["name"] == "init", f"json name: {payload}")
-    expect(payload[0]["dir"] == "init", f"json dir: {payload}")
-    expect(payload[0]["path"] == "skills/init/SKILL.md", f"json path: {payload}")
+    by_name = {row["name"]: row for row in payload}
+    expect(set(by_name) == set(authored), f"json names: {payload}")
+    for name in authored:
+        expect(by_name[name]["dir"] == name, f"json dir for {name}: {payload}")
+        expect(
+            by_name[name]["path"] == f"skills/{name}/SKILL.md",
+            f"json path for {name}: {payload}",
+        )
 
 
 def test_empty_root_is_nonzero() -> None:
@@ -202,7 +217,7 @@ def test_assert_empty_expected_fails() -> None:
 def main() -> int:
     os.chdir(REPO)
     tests = [
-        test_repo_enumerates_init,
+        test_repo_enumerates_authored_skills,
         test_empty_root_is_nonzero,
         test_frontmatter_name_and_fallback,
         test_assert_listing_and_installed,

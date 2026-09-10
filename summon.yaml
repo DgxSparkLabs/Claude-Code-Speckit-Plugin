@@ -1,5 +1,5 @@
 name: speckit
-description: Spec-driven-development plugin that installs the Spec Kit workflow via the specify CLI
+description: Provides `init` and `upgrade` skills to install, run, and upgrade GitHub Spec Kit (spec-driven development) via the `specify` CLI.
 system_requirements:
   - name: uv
     optional: false
