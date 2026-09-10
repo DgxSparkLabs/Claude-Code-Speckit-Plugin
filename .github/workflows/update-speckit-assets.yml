@@ -77,9 +77,9 @@ jobs:
         if: steps.check.outputs.regen == 'true'
         run: uv run scripts/update_assets.py regenerate
 
-      # ── Sync skills/init from assets/skills/init ──────────────────
-      # skills/ ships only init. scripts/build_skills.py copies the
-      # whole assets/skills/init tree into skills/init.
+      # ── Sync skills/ from assets/skills/* ─────────────────────────
+      # scripts/build_skills.py syncs every authored skill from
+      # assets/skills/* into skills/.
       - name: Rebuild bundled skills
         if: steps.check.outputs.regen == 'true'
         run: uv run scripts/build_skills.py
@@ -114,7 +114,7 @@ jobs:
 
             Changes:
             - Regenerated `assets/bash/` via `specify init` from specify-cli ${{ steps.cli.outputs.version }}
-            - Synced `skills/init` from `assets/skills/init` via `scripts/build_skills.py` (`skills/` ships only `init`)
+            - Synced `skills/` from `assets/skills/*` via `scripts/build_skills.py`
             - Bumped `.claude-plugin/plugin.json` when the installed CLI version differed from the plugin
             - Regenerated `README.md` via `scripts/generate_readme.py`
           labels: dependencies,automated
