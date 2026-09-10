@@ -101,6 +101,8 @@ If `.gitattributes` already has **conflicting** attributes for any of `*.sh`, `*
 
 Only create or append automatically when there is no conflict (the patterns are absent, or already match this block exactly — then this step is a no-op).
 
+After the `.gitattributes` rules are in place (created/appended with no conflict, or the user approved a resolution), apply them to already-tracked files. If the project is a git repository, run `git add --renormalize .`, then review the result and commit it (for example `Normalize line endings`). That is what converts previously-committed CRLF `.sh` files to LF in the index. Skip this when the project is not a git repository yet — there is nothing to renormalize — or when there are no pre-existing tracked files to convert: files `specify init` just generated normalize on their first `git add`.
+
 ### 4. Enable default extensions
 
 After a successful init, enable the default Spec Kit extensions unless the user opts out.
