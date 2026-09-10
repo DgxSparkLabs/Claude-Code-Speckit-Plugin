@@ -1,6 +1,6 @@
 # Agent notes — Claude-Code-Speckit-Plugin
 
-This repository is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that bundles [GitHub Spec Kit](https://github.com/github/spec-kit) under the [DgxSparkLabs](https://github.com/DgxSparkLabs) brand. It ships thin wrappers (`init`, `upgrade`, `doctor`, `extensions`, `presets`, `bundles`, `integrations`) that install, run, upgrade, and manage the real `specify` CLI via `uv` (`uv` is required).
+This repository is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that bundles [GitHub Spec Kit](https://github.com/github/spec-kit) under the [DgxSparkLabs](https://github.com/DgxSparkLabs) brand. It ships thin wrappers (`init`, `upgrade`, `doctor`, `extensions`, `presets`, `bundles`, `integrations`, `workflows`, `workflow-authoring`) that install, run, upgrade, and manage the real `specify` CLI via `uv` (`uv` is required).
 
 ## Generated files — do not hand-edit
 
@@ -27,6 +27,8 @@ Authored plugin skills live under `assets/skills/<name>/` and are copied into `s
 - `/speckit:presets` wraps `specify preset` (list/search/add/remove/info/enable/disable/set-priority/resolve). Presets outrank extensions on the resolution stack.
 - `/speckit:bundles` wraps `specify bundle` for discovering, installing, and maintaining role/team bundles (search/info/list/install/update/remove/validate).
 - `/speckit:integrations` wraps `specify integration` (list/status/install/upgrade/switch/use/uninstall/info/search). There is no `integration add`; this plugin's init uses `claude`.
+- `/speckit:workflows` operates existing workflows (`specify workflow run` / `resume` / `status` / `list`). The built-in `speckit` workflow drives the full SDD cycle.
+- `/speckit:workflow-authoring` installs, customizes, and authors workflows (`specify workflow add`, the `overlay` group, `resolve`, and overlay YAML).
 
 ## Compat CI
 
