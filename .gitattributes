@@ -16,3 +16,8 @@
 # Be explicit for the shell scripts that run on the Linux CI runner: CRLF in a
 # script produces `bad interpreter` / `\r` command-not-found failures.
 *.sh text eol=lf
+
+# skills/ is a build artifact: scripts/build_skills.py regenerates it wholesale
+# from assets/skills/*. Mark it generated so GitHub collapses its diffs and
+# omits it from language stats. Edit assets/skills/* instead.
+skills/** linguist-generated=true
