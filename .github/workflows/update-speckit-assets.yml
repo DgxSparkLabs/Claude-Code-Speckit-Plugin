@@ -2,7 +2,7 @@
 #
 # Installs the latest stable specify-cli from PyPI (the same channel the init
 # skill uses). If the installed CLI version differs from plugin.json,
-# regenerates assets/bash/, syncs skills/init, bumps plugin.json to the
+# regenerates assets/bash/, syncs skills/ from assets/skills/*, bumps plugin.json to the
 # installed CLI version, and opens a PR.
 #
 # A push to assets/skills/init/extensions.txt, or workflow_dispatch with
