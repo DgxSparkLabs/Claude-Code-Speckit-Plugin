@@ -87,7 +87,7 @@ Remove the skills the `skills` CLI installed. Running `npx skills list` shows wh
 
 ```bash
 npx skills list
-npx skills remove bundles doctor extensions init integrations presets upgrade workflow-authoring workflows
+npx skills remove
 ```
 
 Neither route touches the `.specify/` tree or the specs already generated in your project, so delete those yourself if you no longer want them.

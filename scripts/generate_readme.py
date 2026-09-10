@@ -250,8 +250,6 @@ def render() -> str:
     else:
         ships = f"The plugin ships {ships_noun}."
 
-    npx_remove_args = " ".join(s["name"] for s in plugin_skills)
-
     extensions = default_extensions()
     ext_list = ", ".join(f"`{e}`" for e in extensions)
 
@@ -359,7 +357,7 @@ Remove the skills the `skills` CLI installed. Running `npx skills list` shows wh
 
 ```bash
 npx skills list
-npx skills remove {npx_remove_args}
+npx skills remove
 ```
 
 Neither route touches the `.specify/` tree or the specs already generated in your project, so delete those yourself if you no longer want them.
