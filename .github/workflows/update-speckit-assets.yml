@@ -8,6 +8,20 @@
 # A push to assets/skills/init/extensions.txt, or workflow_dispatch with
 # force_regenerate, re-runs generation even when the version is unchanged
 # so the snapshot's .specify/extensions.yml cannot silently drift.
+#
+# A push that updates .claude-plugin/plugin.json (the auto-PR merge path)
+# also runs this workflow. Push events only force regeneration when
+# extensions.txt itself changed, to avoid a regen/PR loop on plugin.json-only
+# merges.
+#
+# tag-release runs on every trigger and idempotently ensures a v<version>
+# tag for the version on main. Immediate tagging after the auto-update PR
+# merges requires that merge to fire a push event, which only happens when
+# SPECKIT_PAT (a real PAT) performs the merge — GITHUB_TOKEN-authored merges
+# do not retrigger workflows. When no PAT is configured, the daily schedule
+# run creates the tag instead (within ~24h).
+# cleanup-stale-branches deletes leftover auto/update-speckit-* heads that
+# have no open PR.
 
 name: Update Spec Kit Assets
 
@@ -19,6 +33,7 @@ on:
     branches: [main]
     paths:
       - "assets/skills/init/extensions.txt"
+      - ".claude-plugin/plugin.json"
   workflow_dispatch:
     inputs:
       force_regenerate:
@@ -38,6 +53,35 @@ jobs:
       # ── Checkout ──────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # Need the push's before SHA so we can tell whether extensions.txt
+          # actually changed (plugin.json-only merges must not force regen).
+          fetch-depth: 0
+
+      # ── Detect whether extensions.txt changed in this push ────────
+      - name: Detect changed files
+        id: changes
+        run: |
+          EXT_PATH="assets/skills/init/extensions.txt"
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "ext_changed=false" >> "$GITHUB_OUTPUT"
+            echo "Not a push event; ext_changed=false"
+            exit 0
+          fi
+          BEFORE="${{ github.event.before }}"
+          ZERO="0000000000000000000000000000000000000000"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "$ZERO" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "ext_changed=true" >> "$GITHUB_OUTPUT"
+            echo "before SHA unavailable; conservatively treating extensions.txt as changed"
+            exit 0
+          fi
+          if git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -Fxq "$EXT_PATH"; then
+            echo "ext_changed=true" >> "$GITHUB_OUTPUT"
+            echo "$EXT_PATH changed in this push"
+          else
+            echo "ext_changed=false" >> "$GITHUB_OUTPUT"
+            echo "$EXT_PATH unchanged in this push"
+          fi
 
       # ── Read current plugin version ───────────────────────────────
       - name: Get current plugin version
@@ -71,6 +115,7 @@ jobs:
           --current "${{ steps.current.outputs.version }}"
           --force "${{ github.event.inputs.force_regenerate }}"
           --event "${{ github.event_name }}"
+          --ext-changed "${{ steps.changes.outputs.ext_changed }}"
 
       # ── Regenerate assets ─────────────────────────────────────────
       - name: Regenerate assets
@@ -137,11 +182,51 @@ jobs:
       # so merging a clean (conflict-free) PR is safe. `--auto` is used when a
       # PAT opened the PR and required checks apply; otherwise GitHub rejects
       # `--auto` on an already-clean PR, so fall back to a direct merge. Neither
-      # path merges a PR that has conflicts.
+      # path merges a PR that has conflicts. `--delete-branch` removes the
+      # auto/update-speckit-* head once the merge lands.
       - name: Enable auto-merge
         if: steps.check.outputs.regen == 'true' && steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.SPECKIT_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge \
-            || gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge
+          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge --delete-branch \
+            || gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge --delete-branch
+
+  tag-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Tag current plugin version
+        run: |
+          VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+          TAG="v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists; nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "spec-kit $TAG"
+          git push origin "$TAG"
+
+  cleanup-stale-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.0.0
+        with:
+          enable-cache: false
+
+      - name: Delete merged auto-update branches
+        env:
+          GH_TOKEN: ${{ secrets.SPECKIT_PAT || secrets.GITHUB_TOKEN }}
+        run: uv run scripts/update_assets.py cleanup-branches

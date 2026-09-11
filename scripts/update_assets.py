@@ -14,6 +14,8 @@ Each subcommand replaces one long inline bash block:
   * ``regenerate``     -- run `specify init` with the default extension set in
     a temp dir and rebuild ``assets/bash/`` from the result
   * ``bump-version``   -- rewrite ``.claude-plugin/plugin.json``'s ``version``
+  * ``cleanup-branches`` -- prune leftover ``auto/update-speckit-*`` remote
+    heads that have no open PR
 
 Step outputs are appended to the file named by ``$GITHUB_OUTPUT``; when that
 variable is unset (local runs) they are printed instead.
@@ -21,9 +23,10 @@ variable is unset (local runs) they are printed instead.
 Usage:
     uv run scripts/update_assets.py parse-version
     uv run scripts/update_assets.py decide --cli 1.2.3 --current 1.2.2 \\
-        --force false --event schedule
+        --force false --event schedule --ext-changed false
     uv run scripts/update_assets.py regenerate
     uv run scripts/update_assets.py bump-version --version 1.2.3
+    uv run scripts/update_assets.py cleanup-branches --dry-run
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ from pathlib import Path
 EXT_TXT_REL = Path("assets") / "skills" / "init" / "extensions.txt"
 TARGET_REL = Path("assets") / "bash"
 PLUGIN_JSON_REL = Path(".claude-plugin") / "plugin.json"
+AUTO_UPDATE_PREFIX = "auto/update-speckit-"
 
 PRERELEASE_RE = re.compile(r"(dev|alpha|beta|rc)")
 
@@ -108,9 +112,11 @@ def cmd_decide(args: argparse.Namespace) -> int:
         print("force_regenerate=true; will regenerate.")
         regen = True
 
-    if args.event == "push":
-        print("extensions.txt changed on main; will regenerate.")
+    if args.event == "push" and args.ext_changed == "true":
+        print("extensions.txt changed in this push; will regenerate.")
         regen = True
+    elif args.event == "push":
+        print("Push did not touch extensions.txt; no forced regeneration.")
 
     emit(
         needs_update="true" if needs_update else "false",
@@ -165,6 +171,100 @@ def cmd_bump_version(args: argparse.Namespace) -> int:
     return 0
 
 
+def remote_branch_name(ref: str) -> str:
+    """Strip remote/ref prefixes down to the branch name as GitHub sees it."""
+    name = ref.strip()
+    for prefix in ("refs/remotes/origin/", "refs/heads/", "origin/"):
+        if name.startswith(prefix):
+            return name[len(prefix) :]
+    return name
+
+
+def is_deletable_auto_branch(branch: str) -> bool:
+    """Hard safety: only ``auto/update-speckit-*`` heads; never ``main``."""
+    return bool(branch) and branch != "main" and branch.startswith(AUTO_UPDATE_PREFIX)
+
+
+def should_delete_auto_branch(branch: str, open_pr_count: int) -> bool:
+    return is_deletable_auto_branch(branch) and open_pr_count == 0
+
+
+def cmd_cleanup_branches(args: argparse.Namespace) -> int:
+    subprocess.run(["git", "fetch", "--prune", "origin"], check=True)
+    listed = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    branches: list[str] = []
+    for line in listed.stdout.splitlines():
+        if "\t" not in line:
+            continue
+        name = remote_branch_name(line.split("\t", 1)[1])
+        if is_deletable_auto_branch(name):
+            branches.append(name)
+
+    deleted = 0
+    kept = 0
+    failed = 0
+    for branch in branches:
+        if not is_deletable_auto_branch(branch):
+            print(f"refusing to delete {branch} (prefix guard)")
+            kept += 1
+            continue
+
+        try:
+            count_raw = subprocess.run(
+                [
+                    "gh",
+                    "pr",
+                    "list",
+                    "--head",
+                    branch,
+                    "--state",
+                    "open",
+                    "--json",
+                    "number",
+                    "--jq",
+                    "length",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            open_count = int(count_raw or "0")
+        except (subprocess.CalledProcessError, ValueError) as exc:
+            print(f"keeping {branch} (could not query open PRs: {exc})")
+            kept += 1
+            continue
+
+        if not should_delete_auto_branch(branch, open_count):
+            print(f"keeping {branch} (open PR count={open_count})")
+            kept += 1
+            continue
+
+        if args.dry_run:
+            print(f"would delete {branch} (no open PR)")
+            deleted += 1
+            continue
+
+        try:
+            subprocess.run(
+                ["git", "push", "origin", "--delete", branch],
+                check=True,
+            )
+            print(f"deleted {branch} (no open PR)")
+            deleted += 1
+        except subprocess.CalledProcessError as exc:
+            print(f"failed to delete {branch}: {exc}", file=sys.stderr)
+            failed += 1
+
+    print(f"cleanup-branches: deleted={deleted} kept={kept} failed={failed}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -184,6 +284,11 @@ def main(argv: list[str] | None = None) -> int:
     decide.add_argument("--current", required=True, help="version currently in plugin.json")
     decide.add_argument("--force", default="", help="force_regenerate workflow input")
     decide.add_argument("--event", default="", help="triggering GitHub event name")
+    decide.add_argument(
+        "--ext-changed",
+        default="false",
+        help="true if assets/skills/init/extensions.txt changed in this push",
+    )
     decide.set_defaults(func=cmd_decide)
 
     sub.add_parser("regenerate", help="rebuild assets/bash from a fresh specify init").set_defaults(
@@ -199,6 +304,17 @@ def main(argv: list[str] | None = None) -> int:
         help="override plugin.json path (default: <repo>/.claude-plugin/plugin.json)",
     )
     bump.set_defaults(func=cmd_bump_version)
+
+    cleanup = sub.add_parser(
+        "cleanup-branches",
+        help="delete leftover auto/update-speckit-* heads with no open PR",
+    )
+    cleanup.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print intended deletions without pushing",
+    )
+    cleanup.set_defaults(func=cmd_cleanup_branches)
 
     args = parser.parse_args(argv)
     try:
