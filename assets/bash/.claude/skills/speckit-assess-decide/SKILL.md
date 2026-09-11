@@ -3,7 +3,7 @@ name: speckit-assess-decide
 description: Apply a go / needs-clarification / kill gate and hand survivors off into Spec-Driven Development
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
+  author: spec-kit-core
   source: assess:commands/speckit.assess.decide.md
 ---
 

@@ -3,7 +3,7 @@ name: speckit-assess-intake
 description: Capture and normalize a raw idea (text, URL, ticket, or codebase pointer) into an intake note
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
+  author: spec-kit-core
   source: assess:commands/speckit.assess.intake.md
 ---
 

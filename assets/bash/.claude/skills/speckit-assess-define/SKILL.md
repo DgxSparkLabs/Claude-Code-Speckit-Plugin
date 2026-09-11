@@ -3,7 +3,7 @@ name: speckit-assess-define
 description: 'Define the problem: who is affected, what hurts, goals, non-goals, and success metrics'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
+  author: spec-kit-core
   source: assess:commands/speckit.assess.define.md
 ---
 
