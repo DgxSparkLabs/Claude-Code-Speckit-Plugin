@@ -1,17 +1,11 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
 """Smoke tests for scripts/list_skills.py and scripts/assert_skills.py.
 
-Not a pytest suite: run with `uv run tests/test_list_skills.py`.
+Run with `uv run pytest`.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -32,15 +26,6 @@ def run(script: Path, *args: str, check: bool = False) -> subprocess.CompletedPr
     )
 
 
-def fail(message: str) -> None:
-    raise SystemExit(message)
-
-
-def expect(condition: bool, message: str) -> None:
-    if not condition:
-        fail(message)
-
-
 def write_skill(root: Path, directory: str, frontmatter: str | None) -> None:
     skill_dir = root / "skills" / directory
     skill_dir.mkdir(parents=True)
@@ -48,28 +33,41 @@ def write_skill(root: Path, directory: str, frontmatter: str | None) -> None:
     (skill_dir / "SKILL.md").write_text(body, encoding="utf-8")
 
 
-def test_repo_enumerates_init() -> None:
+def test_repo_enumerates_authored_skills() -> None:
+    authored = sorted(
+        p.name
+        for p in (REPO / "assets" / "skills").iterdir()
+        if p.is_dir()
+    )
+    assert set(authored) >= {"init", "upgrade"}, (
+        f"expected authored skills to include init and upgrade, got {authored}"
+    )
+
     proc = run(LIST_SKILLS)
-    expect(proc.returncode == 0, f"list_skills failed: {proc.stderr}")
+    assert proc.returncode == 0, f"list_skills failed: {proc.stderr}"
     names = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
-    expect("init" in names, f"expected 'init' in {names}")
-    expect(names == sorted(names), f"names not sorted: {names}")
+    assert names == authored, f"list names {names} != authored {authored}"
+    assert names == sorted(names), f"names not sorted: {names}"
 
     proc_json = run(LIST_SKILLS, "--json")
-    expect(proc_json.returncode == 0, f"list_skills --json failed: {proc_json.stderr}")
+    assert proc_json.returncode == 0, f"list_skills --json failed: {proc_json.stderr}"
     payload = json.loads(proc_json.stdout)
-    expect(isinstance(payload, list) and payload, f"bad json: {proc_json.stdout!r}")
-    expect(payload[0]["name"] == "init", f"json name: {payload}")
-    expect(payload[0]["dir"] == "init", f"json dir: {payload}")
-    expect(payload[0]["path"] == "skills/init/SKILL.md", f"json path: {payload}")
+    assert isinstance(payload, list) and payload, f"bad json: {proc_json.stdout!r}"
+    by_name = {row["name"]: row for row in payload}
+    assert set(by_name) == set(authored), f"json names: {payload}"
+    for name in authored:
+        assert by_name[name]["dir"] == name, f"json dir for {name}: {payload}"
+        assert (
+            by_name[name]["path"] == f"skills/{name}/SKILL.md"
+        ), f"json path for {name}: {payload}"
 
 
 def test_empty_root_is_nonzero() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         proc = run(LIST_SKILLS, "--root", tmp)
-    expect(proc.returncode != 0, "empty root must exit non-zero")
-    expect("no skills found" in proc.stderr, f"stderr: {proc.stderr!r}")
-    expect(proc.stdout.strip() == "", f"stdout should be empty, got {proc.stdout!r}")
+    assert proc.returncode != 0, "empty root must exit non-zero"
+    assert "no skills found" in proc.stderr, f"stderr: {proc.stderr!r}"
+    assert proc.stdout.strip() == "", f"stdout should be empty, got {proc.stdout!r}"
 
 
 def test_frontmatter_name_and_fallback() -> None:
@@ -78,10 +76,10 @@ def test_frontmatter_name_and_fallback() -> None:
         write_skill(root, "alpha-dir", 'name: "renamed"\n')
         write_skill(root, "beta", "description: no name here\n")
         proc = run(LIST_SKILLS, "--root", str(root), "--json")
-        expect(proc.returncode == 0, proc.stderr)
+        assert proc.returncode == 0, proc.stderr
         payload = json.loads(proc.stdout)
         by_dir = {row["dir"]: row["name"] for row in payload}
-        expect(by_dir == {"alpha-dir": "renamed", "beta": "beta"}, f"got {by_dir}")
+        assert by_dir == {"alpha-dir": "renamed", "beta": "beta"}, f"got {by_dir}"
 
 
 def test_assert_listing_and_installed() -> None:
@@ -103,7 +101,7 @@ def test_assert_listing_and_installed() -> None:
             "--installed-root",
             str(root / "cache"),
         )
-        expect(ok.returncode == 0, f"expected pass: {ok.stdout}\n{ok.stderr}")
+        assert ok.returncode == 0, f"expected pass: {ok.stdout}\n{ok.stderr}"
 
         listing.write_text("Available Skills\n  other\n", encoding="utf-8")
         bad_list = run(
@@ -113,8 +111,8 @@ def test_assert_listing_and_installed() -> None:
             "--listing",
             str(listing),
         )
-        expect(bad_list.returncode != 0, "missing listing must fail")
-        expect("MISSING" in bad_list.stderr, bad_list.stderr)
+        assert bad_list.returncode != 0, "missing listing must fail"
+        assert "MISSING" in bad_list.stderr, bad_list.stderr
 
         empty_root = root / "empty"
         empty_root.mkdir()
@@ -125,7 +123,7 @@ def test_assert_listing_and_installed() -> None:
             "--installed-root",
             str(empty_root),
         )
-        expect(bad_disk.returncode != 0, "missing SKILL.md must fail")
+        assert bad_disk.returncode != 0, "missing SKILL.md must fail"
 
 
 def test_assert_plugin_registry_install_path() -> None:
@@ -158,7 +156,7 @@ def test_assert_plugin_registry_install_path() -> None:
             "--plugin-registry",
             str(registry),
         )
-        expect(proc.returncode == 0, f"registry path should count: {proc.stdout}\n{proc.stderr}")
+        assert proc.returncode == 0, f"registry path should count: {proc.stdout}\n{proc.stderr}"
 
 
 def test_assert_plugin_id_missing_registry_fails() -> None:
@@ -176,13 +174,12 @@ def test_assert_plugin_id_missing_registry_fails() -> None:
             "--plugin-registry",
             str(missing_registry),
         )
-        expect(
-            proc.returncode != 0,
-            f"missing registry must fail: {proc.stdout}\n{proc.stderr}",
-        )
-        expect("plugin registry not found" in proc.stderr, proc.stderr)
-        expect("nothing to assert against" in proc.stderr, proc.stderr)
-        expect("all 1 skill(s) present" not in proc.stdout, proc.stdout)
+        assert (
+            proc.returncode != 0
+        ), f"missing registry must fail: {proc.stdout}\n{proc.stderr}"
+        assert "plugin registry not found" in proc.stderr, proc.stderr
+        assert "nothing to assert against" in proc.stderr, proc.stderr
+        assert "all 1 skill(s) present" not in proc.stdout, proc.stdout
 
 
 def test_assert_empty_expected_fails() -> None:
@@ -196,27 +193,4 @@ def test_assert_empty_expected_fails() -> None:
             "--listing",
             str(listing),
         )
-    expect(proc.returncode != 0, "empty expected set must fail")
-
-
-def main() -> int:
-    os.chdir(REPO)
-    tests = [
-        test_repo_enumerates_init,
-        test_empty_root_is_nonzero,
-        test_frontmatter_name_and_fallback,
-        test_assert_listing_and_installed,
-        test_assert_plugin_registry_install_path,
-        test_assert_plugin_id_missing_registry_fails,
-        test_assert_empty_expected_fails,
-    ]
-    for test in tests:
-        print(f"RUN {test.__name__}")
-        test()
-        print(f"OK  {test.__name__}")
-    print(f"all {len(tests)} tests passed")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    assert proc.returncode != 0, "empty expected set must fail"

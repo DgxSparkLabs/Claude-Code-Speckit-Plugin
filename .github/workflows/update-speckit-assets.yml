@@ -1,8 +1,13 @@
-# update-speckit-assets.yml — daily check for new spec-kit releases
+# update-speckit-assets.yml — keep the snapshot aligned with PyPI specify-cli
 #
-# Checks the latest release at github/spec-kit. If it's newer than the
-# current plugin version, regenerates assets/ and bumps plugin.json to
-# match, then opens a PR.
+# Installs the latest stable specify-cli from PyPI (the same channel the init
+# skill uses). If the installed CLI version differs from plugin.json,
+# regenerates assets/bash/, syncs skills/ from assets/skills/*, bumps plugin.json to the
+# installed CLI version, and opens a PR.
+#
+# A push to assets/skills/init/extensions.txt, or workflow_dispatch with
+# force_regenerate, re-runs generation even when the version is unchanged
+# so the snapshot's .specify/extensions.yml cannot silently drift.
 
 name: Update Spec Kit Assets
 
@@ -10,7 +15,16 @@ on:
   schedule:
     # Run daily at 06:00 UTC
     - cron: "0 6 * * *"
-  workflow_dispatch: # Allow manual trigger
+  push:
+    branches: [main]
+    paths:
+      - "assets/skills/init/extensions.txt"
+  workflow_dispatch:
+    inputs:
+      force_regenerate:
+        description: "Regenerate assets even when the installed CLI version matches plugin.json"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -25,25 +39,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # ── Detect latest spec-kit release ────────────────────────────
-      - name: Get latest spec-kit release version
-        id: latest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG=$(gh api repos/github/spec-kit/releases/latest --jq '.tag_name')
-          VERSION="${TAG#v}"
-          # Skip dev/pre-release versions (e.g. 0.5.2.dev0, 0.6.0a1, 0.6.0rc1)
-          if [[ "$VERSION" =~ (dev|alpha|beta|rc) ]]; then
-            echo "Skipping pre-release version: $VERSION"
-            echo "version=" >> "$GITHUB_OUTPUT"
-            echo "tag=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Latest spec-kit release: $TAG ($VERSION)"
-
       # ── Read current plugin version ───────────────────────────────
       - name: Get current plugin version
         id: current
@@ -52,111 +47,75 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Current plugin version: $VERSION"
 
-      # ── Compare versions ──────────────────────────────────────────
-      - name: Check if update is needed
-        id: check
-        run: |
-          LATEST="${{ steps.latest.outputs.version }}"
-          CURRENT="${{ steps.current.outputs.version }}"
-          if [ -z "$LATEST" ]; then
-            echo "No stable release found. Skipping."
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          elif [ "$LATEST" = "$CURRENT" ]; then
-            echo "Version $CURRENT is already up to date."
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Update available: $CURRENT → $LATEST"
-            echo "needs_update=true" >> "$GITHUB_OUTPUT"
-          fi
-
       # ── Install uv ───────────────────────────────────────────────
       - name: Install uv
-        if: steps.check.outputs.needs_update == 'true'
         uses: astral-sh/setup-uv@v8.0.0
         with:
           enable-cache: false
 
-      # ── Install specify-cli at the release tag ────────────────────
+      # ── Install specify-cli from PyPI (latest stable) ─────────────
       - name: Install specify-cli
-        if: steps.check.outputs.needs_update == 'true'
+        id: cli
         run: |
-          uv tool install specify-cli --force \
-            --from "git+https://github.com/github/spec-kit.git@${{ steps.latest.outputs.tag }}"
-          echo "Installed specify-cli version:"
+          uv tool install specify-cli --force
+          echo "Installed specify-cli:"
           specify version
+          uv run scripts/update_assets.py parse-version
+
+      # ── Compare versions / decide whether to regenerate ───────────
+      - name: Check if update is needed
+        id: check
+        run: >
+          uv run scripts/update_assets.py decide
+          --cli "${{ steps.cli.outputs.version }}"
+          --current "${{ steps.current.outputs.version }}"
+          --force "${{ github.event.inputs.force_regenerate }}"
+          --event "${{ github.event_name }}"
 
       # ── Regenerate assets ─────────────────────────────────────────
       - name: Regenerate assets
-        if: steps.check.outputs.needs_update == 'true'
-        run: |
-          INIT_FLAGS=(--integration claude --here --force --ignore-agent-tools --non-interactive)
+        if: steps.check.outputs.regen == 'true'
+        run: uv run scripts/update_assets.py regenerate
 
-          EXT_FLAGS=()
-          while IFS= read -r line || [ -n "$line" ]; do
-            line="${line#"${line%%[![:space:]]*}"}"
-            line="${line%"${line##*[![:space:]]}"}"
-            [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
-            EXT_FLAGS+=(--extension "$line")
-          done < speckit-extensions.txt
-
-          TARGET_DIR="assets/bash"
-          echo "═══ Generating bash assets (--script sh) ═══"
-
-          WORK_DIR="$(mktemp -d)"
-
-          (cd "$WORK_DIR" && specify init . "${INIT_FLAGS[@]}" "${EXT_FLAGS[@]}" --script sh)
-
-          rm -rf "$TARGET_DIR"
-          mkdir -p "$TARGET_DIR"
-          cp -R "$WORK_DIR/.claude" "$TARGET_DIR/.claude"
-          cp -R "$WORK_DIR/.specify" "$TARGET_DIR/.specify"
-          find "$TARGET_DIR/.specify" -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
-
-          rm -rf "$WORK_DIR"
-          echo "✅  assets/bash updated"
-
-      # ── Rebuild bundled plugin skills from canonical sources ───────────
+      # ── Sync skills/ from assets/skills/* ─────────────────────────
+      # scripts/build_skills.py syncs every authored skill from
+      # assets/skills/* into skills/.
       - name: Rebuild bundled skills
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.regen == 'true'
         run: uv run scripts/build_skills.py
 
       # ── Update plugin.json version ────────────────────────────────
       - name: Update plugin.json version
         if: steps.check.outputs.needs_update == 'true'
-        run: |
-          PLUGIN_JSON=".claude-plugin/plugin.json"
-          NEW_VERSION="${{ steps.latest.outputs.version }}"
-          jq --arg v "$NEW_VERSION" '.version = $v' "$PLUGIN_JSON" > "${PLUGIN_JSON}.tmp"
-          mv "${PLUGIN_JSON}.tmp" "$PLUGIN_JSON"
-          echo "Updated plugin.json version to $NEW_VERSION"
+        run: uv run scripts/update_assets.py bump-version --version "${{ steps.cli.outputs.version }}"
 
       # ── Regenerate README ─────────────────────────────────────────
       - name: Regenerate README
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.regen == 'true'
         run: uv run scripts/generate_readme.py
 
       # ── Create Pull Request ───────────────────────────────────────
       - name: Create Pull Request
         id: cpr
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.regen == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
           # PAT with contents:write + pull-requests:write. Falls back to
           # GITHUB_TOKEN, but note: if the org disables "Allow GitHub Actions
           # to create and approve pull requests", only a PAT can open the PR.
           token: ${{ secrets.SPECKIT_PAT || secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update spec-kit assets to ${{ steps.latest.outputs.version }}"
-          branch: "auto/update-speckit-${{ steps.latest.outputs.version }}"
-          title: "chore: update spec-kit assets to ${{ steps.latest.outputs.version }}"
+          commit-message: "chore: update spec-kit assets to ${{ steps.cli.outputs.version }}"
+          branch: "auto/update-speckit-${{ steps.cli.outputs.version }}"
+          title: "chore: update spec-kit assets to ${{ steps.cli.outputs.version }}"
           body: |
-            Automated update of spec-kit assets to version **${{ steps.latest.outputs.version }}**.
+            Automated snapshot refresh from PyPI **specify-cli ${{ steps.cli.outputs.version }}**.
 
-            **Release:** https://github.com/github/spec-kit/releases/tag/${{ steps.latest.outputs.tag }}
+            **Channel:** PyPI `specify-cli` (latest stable), same as the init skill. Version taken from the installed CLI (`specify --version`), not a GitHub release tag.
 
             Changes:
-            - Regenerated `assets/bash/` from spec-kit ${{ steps.latest.outputs.version }}
-            - Rebuilt `skills/` wholesale via `scripts/build_skills.py` from `assets/skills/init` + `assets/bash/.claude/skills/`
-            - Updated `.claude-plugin/plugin.json` version to `${{ steps.latest.outputs.version }}`
+            - Regenerated `assets/bash/` via `specify init` from specify-cli ${{ steps.cli.outputs.version }}
+            - Synced `skills/` from `assets/skills/*` via `scripts/build_skills.py`
+            - Bumped `.claude-plugin/plugin.json` when the installed CLI version differed from the plugin
             - Regenerated `README.md` via `scripts/generate_readme.py`
           labels: dependencies,automated
           delete-branch: true
@@ -170,7 +129,7 @@ jobs:
       # into the PR. A failure fails the job and skips auto-merge, leaving the
       # PR open for inspection.
       - name: Plugin compat check
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.regen == 'true'
         uses: ./.github/actions/plugin-compat
 
       # ── Enable auto-merge ─────────────────────────────────────────
@@ -180,7 +139,7 @@ jobs:
       # `--auto` on an already-clean PR, so fall back to a direct merge. Neither
       # path merges a PR that has conflicts.
       - name: Enable auto-merge
-        if: steps.check.outputs.needs_update == 'true' && steps.cpr.outputs.pull-request-number
+        if: steps.check.outputs.regen == 'true' && steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.SPECKIT_PAT || secrets.GITHUB_TOKEN }}
         run: |

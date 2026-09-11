@@ -4,13 +4,13 @@
     "name": "DgxSparkLabs"
   },
   "metadata": {
-    "description": "Specification-driven development workflow plugins"
+    "description": "Provides slash-command skills to install, run, upgrade, and manage GitHub Spec Kit (spec-driven development) via the `specify` CLI."
   },
   "plugins": [
     {
       "name": "speckit",
       "source": "./",
-      "description": "Specification-driven development workflow. Provides skills for feature specification, planning, task generation, implementation, and analysis."
+      "description": "Provides slash-command skills to install, run, upgrade, and manage GitHub Spec Kit (spec-driven development) via the `specify` CLI."
     }
   ]
 }

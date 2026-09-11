@@ -4,15 +4,15 @@
 # ///
 """Generate README.md for the Claude-Code-Speckit-Plugin.
 
-The README is a build artifact: its skill catalog is derived from the skills this
-repository ships under ``skills/`` and its CLI reference is derived from the live
-``specify --help`` output. Run this whenever the assets or plugin manifest
-change:
+The README is a build artifact. The plugin skill catalog is derived from
+``skills/`` (the installable set of authored plugin skills). The post-init project-skill
+catalog is derived from ``assets/bash/.claude/skills/``. The CLI reference
+is derived from live ``specify --help`` output.
 
     uv run scripts/generate_readme.py
 
-The daily asset-update workflow runs it automatically so the README never drifts
-from the bundled spec-kit version.
+The daily asset-update workflow runs it automatically so the README tracks
+the installed PyPI ``specify-cli`` version recorded in plugin.json.
 """
 
 from __future__ import annotations
@@ -30,11 +30,13 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_JSON = ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE_JSON = ROOT / ".claude-plugin" / "marketplace.json"
 PLUGIN_SKILLS_DIR = ROOT / "skills"
+SNAPSHOT_SKILLS_DIR = ROOT / "assets" / "bash" / ".claude" / "skills"
+EXTENSIONS_TXT = ROOT / "assets" / "skills" / "init" / "extensions.txt"
 README = ROOT / "README.md"
 
 ANSI = re.compile(r"\x1b\[[0-9;]*[mK]")
 
-# Skill grouping. Names are matched exactly or by the ``speckit-git-`` prefix.
+# Project-skill grouping after init. Names match snapshot SKILL.md `name:`.
 ANALYSIS_SKILLS = {"speckit-analyze", "speckit-checklist", "speckit-taskstoissues"}
 
 
@@ -51,16 +53,10 @@ def parse_frontmatter(path: Path) -> dict:
     return yaml.safe_load(text[3:end]) or {}
 
 
-def collect_skills(plugin_name: str) -> list[dict]:
-    """Collect the shipped ``skills/*`` as {name, command, description, group}.
-
-    Top-level ``skills/`` is the installable set: ``init`` plus the bundled
-    ``speckit-*`` copies of ``assets/bash/.claude/skills/``. Installed as a
-    Claude Code plugin every skill is namespaced ``/<plugin>:<skill>``.
-    """
+def collect_skills(skills_dir: Path) -> list[dict]:
+    """Collect ``*/SKILL.md`` as {name, description, group}."""
     skills: list[dict] = []
-
-    for skill_md in sorted(PLUGIN_SKILLS_DIR.glob("*/SKILL.md")):
+    for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
         fm = parse_frontmatter(skill_md)
         name = fm["name"]
         if name.startswith("speckit-git-"):
@@ -72,15 +68,26 @@ def collect_skills(plugin_name: str) -> list[dict]:
         skills.append(
             {
                 "name": name,
-                "command": f"/{plugin_name}:{name}",
                 "description": fm.get("description", "").strip(),
                 "group": group,
             }
         )
-
-    if not skills:
-        sys.exit("error: found no skills under skills/*/SKILL.md")
     return skills
+
+
+def default_extensions() -> list[str]:
+    """Names from ``assets/skills/init/extensions.txt`` (comments/blanks skipped)."""
+    if not EXTENSIONS_TXT.is_file():
+        sys.exit(f"error: missing {EXTENSIONS_TXT.relative_to(ROOT)}")
+    entries: list[str] = []
+    for raw in EXTENSIONS_TXT.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        entries.append(line)
+    if not entries:
+        sys.exit(f"error: {EXTENSIONS_TXT.relative_to(ROOT)} has no extension entries")
+    return entries
 
 
 def specify_commands() -> tuple[str, list[tuple[str, str]]]:
@@ -95,7 +102,7 @@ def specify_commands() -> tuple[str, list[tuple[str, str]]]:
     except FileNotFoundError:
         sys.exit(
             "error: 'specify' CLI not found. Install it first:\n"
-            "  uv tool install specify-cli --from git+https://github.com/github/spec-kit.git"
+            "  uv tool install specify-cli"
         )
 
     if proc.returncode != 0:
@@ -163,6 +170,48 @@ def md_table(rows: list[tuple[str, ...]], header: tuple[str, ...]) -> str:
     return "\n".join(out)
 
 
+def format_skill_names(names: list[str]) -> str:
+    """Join skill names as `` `a` ``, `` `a` and `b` ``, or Oxford-comma."""
+    ticks = [f"`{n}`" for n in names]
+    if not ticks:
+        return ""
+    if len(ticks) == 1:
+        return ticks[0]
+    if len(ticks) == 2:
+        return f"{ticks[0]} and {ticks[1]}"
+    return ", ".join(ticks[:-1]) + f", and {ticks[-1]}"
+
+
+def ships_noun_phrase(plugin_skills: list[dict]) -> str:
+    """e.g. 'one skill, `init`' or '2 skills: `init` and `upgrade`'."""
+    names = [s["name"] for s in plugin_skills]
+    listed = format_skill_names(names)
+    n = len(names)
+    if n == 1:
+        return f"one skill, {listed}"
+    return f"{n} skills: {listed}"
+
+
+def grouped_skill_tables(
+    skills: list[dict], command_fmt
+) -> str:
+    """Render Core / Analysis / Git tables. ``command_fmt(name) -> cell``."""
+    groups = ["Core Workflow", "Analysis & Quality", "Git Integration"]
+    parts: list[str] = []
+    for group in groups:
+        rows = [
+            (s["name"], f"`{command_fmt(s['name'])}`", s["description"])
+            for s in skills
+            if s["group"] == group
+        ]
+        if not rows:
+            continue
+        parts.append(f"### {group}\n")
+        parts.append(md_table(rows, ("Skill", "Command", "Description")))
+        parts.append("")
+    return "\n".join(parts).rstrip()
+
+
 def render() -> str:
     plugin = read_json(PLUGIN_JSON)
     marketplace = read_json(MARKETPLACE_JSON)
@@ -170,25 +219,39 @@ def render() -> str:
     version = plugin["version"]
     marketplace_name = marketplace["name"]
 
-    skills = collect_skills(plugin_name)
-    groups = ["Core Workflow", "Analysis & Quality", "Git Integration"]
+    plugin_skills = collect_skills(PLUGIN_SKILLS_DIR)
+    if not plugin_skills:
+        sys.exit("error: found no skills under skills/*/SKILL.md")
 
-    skills_md = []
-    for group in groups:
-        rows = [
-            (s["name"], f"`{s['command']}`", s["description"])
-            for s in skills
-            if s["group"] == group
-        ]
-        if not rows:
-            continue
-        skills_md.append(f"### {group}\n")
-        skills_md.append(md_table(rows, ("Skill", "Command", "Description")))
-        skills_md.append("")
-    skills_section = "\n".join(skills_md).rstrip()
+    project_skills = collect_skills(SNAPSHOT_SKILLS_DIR)
+    if not project_skills:
+        sys.exit(
+            "error: found no project skills under "
+            "assets/bash/.claude/skills/*/SKILL.md"
+        )
 
-    skill_count = len(skills)
-    workflow_count = sum(1 for s in skills if s["name"] != "init")
+    plugin_rows = [
+        (s["name"], f"`/{plugin_name}:{s['name']}`", s["description"])
+        for s in plugin_skills
+    ]
+    plugin_table = md_table(plugin_rows, ("Skill", "Command", "Description"))
+
+    project_section = grouped_skill_tables(
+        project_skills, lambda name: f"/{name}"
+    )
+
+    ships_noun = ships_noun_phrase(plugin_skills)
+    skill_names = format_skill_names([s["name"] for s in plugin_skills])
+    if len(plugin_skills) == 1:
+        ships = (
+            f"The plugin ships {ships_noun}. It is a thin wrapper "
+            "around the real `specify` CLI."
+        )
+    else:
+        ships = f"The plugin ships {ships_noun}."
+
+    extensions = default_extensions()
+    ext_list = ", ".join(f"`{e}`" for e in extensions)
 
     tagline, commands = specify_commands()
     cli_rows = [(f"`{c}`", d) for c, d in commands]
@@ -200,7 +263,7 @@ def render() -> str:
             f"(https://github.com/{REPO}/actions/workflows/compat-test.yml)",
             f"[![Update Spec Kit Assets](https://github.com/{REPO}/actions/workflows/update-speckit-assets.yml/badge.svg)]"
             f"(https://github.com/{REPO}/actions/workflows/update-speckit-assets.yml)",
-            f"![Spec Kit](https://img.shields.io/badge/spec--kit-v{version}-blue)",
+            f"![specify-cli](https://img.shields.io/badge/specify--cli-v{version}-blue)",
             "![License](https://img.shields.io/badge/license-MIT-green)",
         ]
     )
@@ -208,27 +271,30 @@ def render() -> str:
     return f"""<!--
   This file is generated by scripts/generate_readme.py.
   Do not edit by hand: run `uv run scripts/generate_readme.py` instead.
-  The skill catalog and CLI reference are derived from the bundled assets and
-  the live `specify --help` output for spec-kit v{version}.
+  Plugin skills come from skills/; project-skill catalog from
+  assets/bash/.claude/skills/; CLI reference from live `specify --help`
+  for specify-cli v{version} (PyPI, recorded in plugin.json).
 -->
 # Claude-Code-Speckit-Plugin
 
 {badges}
 
-A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that installs [Spec Kit](https://github.com/github/spec-kit) into any project. It bundles the spec-kit templates, scripts, and workflow skills so you can run the full specification-driven workflow without installing Python or the `specify` CLI.
+A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that ships {skill_names} for [Spec Kit](https://github.com/github/spec-kit). `/speckit:init` requires [`uv`](https://docs.astral.sh/uv/) and installs `specify-cli` from PyPI (`uv tool install specify-cli`), then runs `specify init` and enables the default extensions. `/speckit:upgrade` updates the CLI and refreshes an initialized project's Spec Kit files.
 
 This plugin is an independent port of the upstream Spec Kit project and is not affiliated with or endorsed by GitHub.
 
 ## Why a Plugin
 
-The upstream Spec Kit CLI requires Python. This plugin bundles the generated assets as a native agent plugin, which means:
-
 - Native package management: install, update, and remove it like any other plugin from Claude Code.
-- CLI compatible: projects initialized by the plugin remain fully compatible with the `specify` CLI if you later switch.
+- The plugin skills wrap the real `specify` CLI: they install or upgrade `specify-cli` from PyPI (the same channel as this repository's snapshot) and run it in the user's project. There is no bundled no-Python substitute.
 
 ## Requirements
 
-Installing the plugin needs either the Claude Code CLI or the `skills` CLI from Vercel, which runs through Node.js with `npx`. Running the workflow needs a bash shell, because the bundled Spec Kit scripts are `.sh` files: on native Windows use Git Bash or WSL. Nothing else is required at runtime, in particular no Python and no `specify` CLI, because the plugin ships the pre-generated assets.
+Installing the plugin needs either the Claude Code CLI or the `skills` CLI from Vercel, which runs through Node.js with `npx`.
+
+Running `/speckit:init` needs **`uv`** (hard requirement). The skill then installs `specify-cli` from PyPI. A system `python3` is not required — uv provisions the interpreter. `git` is optional and only needed for Spec Kit's own git features.
+
+The skill always uses `--script sh` on all platforms, including native Windows. Native Windows needs Git Bash or WSL to run the generated `.sh` scripts.
 
 ## Installation
 
@@ -247,27 +313,15 @@ After installing, list the skills the plugin contributes:
 claude plugin details {plugin_name}@{marketplace_name}
 ```
 
-The command prints the plugin's component inventory, where the `Skills (N)` line names every skill the plugin installs.
+The command prints the plugin's component inventory. This plugin ships {ships_noun}.
 
 ### Agent Skills (`npx skills add`)
 
-This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install:
+This repository follows the [Agent Skills](https://agentskills.io) layout (`skills/<name>/SKILL.md`) used by the [`skills` CLI](https://github.com/vercel-labs/skills). It ships {ships_noun}. These commands install at project scope by default (`./<agent>/skills/`); pass `-g` only if you want a global install:
 
 ```bash
 npx skills add {REPO}
-```
-
-List skills first, or install only `init`:
-
-```bash
 npx skills add {REPO} --list
-npx skills add {REPO} --skill init
-```
-
-Direct skill path:
-
-```bash
-npx skills add https://github.com/{REPO}/tree/main/skills/init
 ```
 
 ## Updating
@@ -278,11 +332,13 @@ npx skills add https://github.com/{REPO}/tree/main/skills/init
 claude plugin update {plugin_name}@{marketplace_name} --scope project
 ```
 
-After updating the plugin, re-initialize your project to pick up the latest assets:
+After updating the plugin, run `/{plugin_name}:upgrade` so the project picks up the latest CLI, integration files, and extensions:
 
 ```
-/{plugin_name}:init --force
+/{plugin_name}:upgrade
 ```
+
+For a broader re-init of project files, `/{plugin_name}:init --force` remains available.
 
 ## Removing
 
@@ -301,86 +357,103 @@ Remove the skills the `skills` CLI installed. Running `npx skills list` shows wh
 
 ```bash
 npx skills list
-npx skills remove init
+npx skills remove
 ```
 
 Neither route touches the `.specify/` tree or the specs already generated in your project, so delete those yourself if you no longer want them.
 
 ## Quick Start
 
-1. Initialize your project with Spec Kit infrastructure:
+1. Initialize the project. The `init` skill checks for `uv`, installs `specify-cli` from PyPI, runs `specify init --integration claude` (with `--script sh`, plus `--non-interactive --ignore-agent-tools`), then `specify extension add` for each default extension ({ext_list}):
    ```
    /{plugin_name}:init
    ```
-2. Establish your project constitution:
+   Optional arguments: a new directory `<project-name>`, `--here` for the current directory, and `--force` when the target is non-empty or already has `.specify/`.
+2. Restart the session (or open the initialized project) so the **project** skills under `.claude/skills/` load. They are `/speckit-<name>`, not plugin-namespaced `/speckit:speckit-<name>`. Do not run `/reload-plugins` for these.
+3. Establish your project constitution:
    ```
-   /{plugin_name}:speckit-constitution
+   /speckit-constitution
    ```
-3. Specify a new feature:
+4. Specify a new feature:
    ```
-   /{plugin_name}:speckit-specify <feature description>
+   /speckit-specify <feature description>
    ```
-4. Plan the implementation:
+5. Plan the implementation:
    ```
-   /{plugin_name}:speckit-plan
+   /speckit-plan
    ```
-5. Generate dependency-ordered tasks:
+6. Generate dependency-ordered tasks:
    ```
-   /{plugin_name}:speckit-tasks
+   /speckit-tasks
    ```
-6. Implement:
+7. Implement:
    ```
-   /{plugin_name}:speckit-implement
+   /speckit-implement
    ```
 
-`/{plugin_name}:init` auto-detects whether it is running as an installed plugin or as a standalone skill, and copies the workflow skills only in standalone mode. Pass `--skills` to force the copy or `--no-skills` to skip it, and `--force` to reinitialize over an existing `.specify/` directory.
+Recommended in between: `/speckit-clarify` before plan, `/speckit-analyze` after tasks, `/speckit-checklist` as needed, then `/speckit-converge` until it reports Converged. `/speckit-taskstoissues` turns the task list into GitHub issues.
 
 ## Available Skills
 
-The plugin ships {skill_count} skills: `init`, which bootstraps a project, plus {workflow_count} workflow skills.
+{ships}
 
-{skills_section}
+{plugin_table}
+
+### Project skills (after `/{plugin_name}:init`)
+
+`specify init --integration claude` writes these under the project's `.claude/skills/`. Invoke them as `/speckit-<name>`. They are not plugin components.
+
+{project_section}
 
 ## Spec Kit CLI Reference
 
-The bundled assets track the `specify` CLI. {tagline}
+`/speckit:init` installs and runs this CLI (PyPI `specify-cli`). {tagline}
 
 {cli_table}
 
 ## How This Plugin Is Generated
 
-The plugin assets are generated from the upstream `specify` CLI and kept in sync automatically as upstream evolves.
+A snapshot of `specify init` output is kept under `assets/bash/` so reviews can diff upstream changes. The installable plugin ships {ships_noun}; users get workflow skills from the live CLI at init time.
 
 ### Generation Process
 
-1. `specify init` runs with `--script sh` and the bundled Spec Kit extensions.
-2. The resulting `.claude/` and `.specify/` directories are copied into `assets/bash/`.
-3. `scripts/build_skills.py` rebuilds the top-level `skills/` tree wholesale from `assets/skills/init` (our authored init skill) and `assets/bash/.claude/skills/speckit-*` (generated). The tree is a build artifact: it is safe to delete and regenerate.
-4. `scripts/generate_readme.py` regenerates this README from the new assets and the current `specify --help` output.
+1. `uv tool install specify-cli` installs the latest stable CLI from PyPI (the same channel `/speckit:init` uses).
+2. `specify init` runs with `--script sh` and `--extension` for each entry in `assets/skills/init/extensions.txt`.
+3. The resulting `.claude/` and `.specify/` directories are copied into `assets/bash/`.
+4. `scripts/build_skills.py` syncs every authored skill from `assets/skills/*` into `skills/`.
+5. `scripts/generate_readme.py` regenerates this README from `skills/`, the snapshot project skills, and the current `specify --help` output.
 
 ### How `init` Bootstraps a Project
 
-When a user runs `/{plugin_name}:init`, the plugin copies the pre-generated `.specify/` tree into the project root. Spec Kit workflow skills are copied into `.claude/skills/` only in standalone mode, detected by the absence of `.claude-plugin/plugin.json` two levels above the init skill directory (an npx-installed `.claude/skills/init` has no such ancestor; a plugin install does). `--skills` / `--no-skills` override the detection. When the plugin is installed they are already provided, so they are skipped by default. Native Windows uses Git Bash or WSL for the bundled `.sh` scripts. No Python or `specify` CLI is required. User content in `.claude/` is preserved: only plugin-owned paths are replaced.
+When a user runs `/{plugin_name}:init`, the skill:
+
+1. Ensures `uv` is installed (and tells the user how to install it if not).
+2. Runs `uv tool install specify-cli` (PyPI, latest stable, unpinned).
+3. Runs `specify init` with `--integration claude`, `--script sh`, `--non-interactive --ignore-agent-tools`, a project name or `--here`, and `--force` when the target is non-empty or already contains `.specify/`.
+4. Optionally prompts to add or remove default extensions, then runs `specify extension add <name>` for each (defaults: {ext_list}, from `assets/skills/init/extensions.txt`).
+
+After init, Spec Kit workflow commands live in the project as `/speckit-<name>` under `.claude/skills/`.
 
 ### Staying Aligned With Upstream
 
-A [GitHub Actions workflow](/.github/workflows/update-speckit-assets.yml) runs daily to keep the plugin in sync:
+A [GitHub Actions workflow](/.github/workflows/update-speckit-assets.yml) runs daily to keep the snapshot in sync with PyPI:
 
-1. Detect: the workflow checks the [latest stable release](https://github.com/github/spec-kit/releases) of `github/spec-kit` and compares it to the version in `.claude-plugin/plugin.json`. Pre-release versions (dev, alpha, beta, rc) are skipped.
-2. Regenerate: if a newer stable release exists, `assets/bash/` is regenerated from scratch and `skills/` is rebuilt wholesale from `assets/skills/init` plus the new `assets/bash/.claude/skills/speckit-*`.
-3. Bump: `.claude-plugin/plugin.json` is updated to the new version.
-4. README: `scripts/generate_readme.py` refreshes the skill catalog and CLI reference.
-5. PR: the workflow opens a pull request (for example, `auto/update-speckit-<version>`) and enables auto-merge, so a clean update with no conflicts merges once checks pass.
+1. Install: `uv tool install specify-cli` (latest stable from PyPI). The version written to plugin.json is parsed from `specify --version`, not a GitHub release tag.
+2. Compare: if that CLI version differs from `.claude-plugin/plugin.json`, regenerate. A push to `assets/skills/init/extensions.txt` (or `workflow_dispatch` with `force_regenerate`) regenerates even when the version is unchanged.
+3. Regenerate: `assets/bash/` is rebuilt from `specify init`, and `skills/` is synced from `assets/skills/*`.
+4. Bump: `.claude-plugin/plugin.json` is updated when the installed CLI version differed.
+5. README: `scripts/generate_readme.py` refreshes this file.
+6. PR: the workflow opens a pull request (for example, `auto/update-speckit-<version>`) and enables auto-merge, so a clean update with no conflicts merges once checks pass.
 
 ## Troubleshooting
 
-`A .specify/ directory already exists in this project.` means the project was already initialized and `init` refused to overwrite anything. Rerun `/{plugin_name}:init --force` to reinitialize over the existing directory.
+`Current directory is not empty and --non-interactive was set` (from `specify init`) means the target already has files — including an existing `.specify/` directory. Re-run `/{plugin_name}:init --force` to merge into it.
 
-`Bundled assets not found locally; fetching them from ...` means `init` found no bundled assets next to the skill or under `$CLAUDE_PLUGIN_ROOT` and fell back to a shallow clone of this repository. That fallback is expected only for a bare standalone install with no local assets and no reachable plugin root; seeing it from a plugin install means the plugin directory is incomplete, so reinstall the plugin.
+If `uv` is missing, install it from [astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/) and rerun `/speckit:init`. If `specify` is not on `PATH` after `uv tool install specify-cli`, invoke it as `uv tool run specify`.
 
-Skills that do not appear, or a `Skills (0)` inventory, mean the agent loaded none of the plugin's components. Confirm what is installed with `claude plugin details {plugin_name}@{marketplace_name}` for the plugin route, or with `npx skills add {REPO} --list` for the Agent Skills route.
+Skills that do not appear, or a `Skills (0)` inventory, mean the agent loaded none of the plugin's components. This plugin should list {ships_noun}. Confirm with `claude plugin details {plugin_name}@{marketplace_name}` for the plugin route, or with `npx skills add {REPO} --list` for the Agent Skills route. After init, workflow commands are project skills (`/speckit-specify`, …) in that project's `.claude/skills/`; restart the session rather than `/reload-plugins`.
 
-On native Windows the bundled `.sh` scripts need a bash shell: run the workflow from Git Bash or WSL, because `cmd.exe` and PowerShell cannot execute them.
+On native Windows the skill uses `--script sh`; Git Bash or WSL is needed to run the generated `.sh` scripts.
 
 ## License
 
