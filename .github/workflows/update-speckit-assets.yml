@@ -10,11 +10,16 @@
 # so the snapshot's .specify/extensions.yml cannot silently drift.
 #
 # A push that updates .claude-plugin/plugin.json (the auto-PR merge path)
-# also runs this workflow so tag-release can create v<version>. Push events
-# only force regeneration when extensions.txt itself changed, to avoid a
-# regen/PR loop on plugin.json-only merges.
+# also runs this workflow. Push events only force regeneration when
+# extensions.txt itself changed, to avoid a regen/PR loop on plugin.json-only
+# merges.
 #
-# tag-release creates an annotated v<version> tag on main (idempotent).
+# tag-release runs on every trigger and idempotently ensures a v<version>
+# tag for the version on main. Immediate tagging after the auto-update PR
+# merges requires that merge to fire a push event, which only happens when
+# SPECKIT_PAT (a real PAT) performs the merge — GITHUB_TOKEN-authored merges
+# do not retrigger workflows. When no PAT is configured, the daily schedule
+# run creates the tag instead (within ~24h).
 # cleanup-stale-branches deletes leftover auto/update-speckit-* heads that
 # have no open PR.
 
@@ -188,7 +193,6 @@ jobs:
             || gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge --delete-branch
 
   tag-release:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
