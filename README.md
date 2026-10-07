@@ -3,11 +3,11 @@
   Do not edit by hand: run `uv run scripts/generate_readme.py` instead.
   Plugin skills come from skills/; project-skill catalog from
   assets/bash/.claude/skills/; CLI reference from live `specify --help`
-  for specify-cli v1.0.13 (PyPI, recorded in plugin.json).
+  for specify-cli v1.1.1 (PyPI, recorded in plugin.json).
 -->
 # Claude-Code-Speckit-Plugin
 
-[![Compat Tests](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml) [![Update Spec Kit Assets](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml) ![specify-cli](https://img.shields.io/badge/specify--cli-v1.0.13-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+[![Compat Tests](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/compat-test.yml) [![Update Spec Kit Assets](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml/badge.svg)](https://github.com/DgxSparkLabs/Claude-Code-Speckit-Plugin/actions/workflows/update-speckit-assets.yml) ![specify-cli](https://img.shields.io/badge/specify--cli-v1.1.1-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 A [DgxSparkLabs](https://github.com/DgxSparkLabs) Claude Code plugin that ships `bundles`, `doctor`, `extensions`, `init`, `integrations`, `presets`, `upgrade`, `workflow-authoring`, and `workflows` for [Spec Kit](https://github.com/github/spec-kit). `/speckit:init` requires [`uv`](https://docs.astral.sh/uv/) and installs `specify-cli` from PyPI (`uv tool install specify-cli`), then runs `specify init` and enables the default extensions. `/speckit:upgrade` updates the CLI and refreshes an initialized project's Spec Kit files.
 
@@ -187,6 +187,7 @@ The plugin ships 9 skills: `bundles`, `doctor`, `extensions`, `init`, `integrati
 | `init` | Initialize a new Specify project. |
 | `check` | Check that all required tools are installed. |
 | `version` | Display version and system information. |
+| `mcp` | Run the experimental version-only MCP server over stdio. |
 | `self` | Manage the specify CLI itself: check for newer releases, preview upgrades with --dry-run, and upgrade in place. |
 | `extension` | Manage spec-kit extensions |
 | `integration` | Manage coding agent integrations |
