@@ -1,7 +1,7 @@
 {
   "integration": "speckit",
-  "version": "1.2.3",
-  "installed_at": "2026-10-23T10:53:02.886440+00:00",
+  "version": "1.2.4",
+  "installed_at": "2026-10-28T11:57:55.533291+00:00",
   "files": {
     ".specify/scripts/bash/check-prerequisites.sh": "e127735bbc5ac42181e2a3c773a2d639979f865f18e74a1a977cdf53392a0a7d",
     ".specify/scripts/bash/common.sh": "53cb1c23e349db4586c272436ce35c6e2f36a9c0b5351a85e0b216d9887a26b7",
