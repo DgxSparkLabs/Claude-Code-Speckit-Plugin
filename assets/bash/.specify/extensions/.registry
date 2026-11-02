@@ -17,12 +17,12 @@
         ]
       },
       "registered_skills": [],
-      "installed_at": "2026-10-29T12:07:41.479516+00:00"
+      "installed_at": "2026-11-02T14:32:17.421803+00:00"
     },
     "assess": {
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "local",
-      "manifest_hash": "sha256:a1c87d9ce8088e7865f1d352137777a693b0595ccc310957c7c051a604ca1db2",
+      "manifest_hash": "sha256:c446e95c0cfc9482eb794fa90d428c5da3257162515db2cebd9ae3ec534d1919",
       "enabled": true,
       "priority": 10,
       "registered_commands": {
@@ -35,7 +35,7 @@
         ]
       },
       "registered_skills": [],
-      "installed_at": "2026-10-29T12:07:41.523762+00:00"
+      "installed_at": "2026-11-02T14:32:17.469480+00:00"
     }
   }
 }
