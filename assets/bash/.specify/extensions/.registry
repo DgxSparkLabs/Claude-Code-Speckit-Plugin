@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "extensions": {
     "git": {
-      "version": "1.0.3",
+      "version": "1.0.4",
       "source": "local",
-      "manifest_hash": "sha256:69b995053c85418e1b2b32e02aea5f52e8b34f01bc2888537bcb2a029b33ce05",
+      "manifest_hash": "sha256:7a190a397b702e38a1f5d0db01072b944d6b28c990651aef2df28385df06aeee",
       "enabled": true,
       "priority": 10,
       "registered_commands": {
@@ -17,7 +17,7 @@
         ]
       },
       "registered_skills": [],
-      "installed_at": "2026-11-04T13:39:04.285075+00:00"
+      "installed_at": "2026-11-06T13:37:34.970813+00:00"
     },
     "assess": {
       "version": "1.0.2",
@@ -35,7 +35,7 @@
         ]
       },
       "registered_skills": [],
-      "installed_at": "2026-11-04T13:39:04.330752+00:00"
+      "installed_at": "2026-11-06T13:37:35.016898+00:00"
     }
   }
 }
