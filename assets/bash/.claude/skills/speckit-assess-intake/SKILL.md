@@ -6,6 +6,8 @@ metadata:
   author: spec-kit-core
   source: assess:commands/speckit.assess.intake.md
   version: 1.0.2
+user-invocable: true
+disable-model-invocation: false
 ---
 
 # Intake an Idea
